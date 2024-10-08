@@ -173,7 +173,7 @@ const (
 	DefaultADHostname                   = "dev.azure.com"
 	DefaultAutoDiscoverMode             = "auto"
 	DefaultAutoplanFileList             = "**/*.tf,**/*.tf.json,**/*.tfvars,**/*.tfvars.json,**/*.tofu,**/*.tofu.json,**/terragrunt.hcl,**/.terraform.lock.hcl"
-	DefaultAllowCommands                = "version,plan,apply,unlock,approve_policies,cancel"
+	DefaultAllowCommands                = "version,draftplan,plan,apply,unlock,approve_policies,cancel"
 	DefaultBlockedExtraArgs             = "-chdir,--chdir,-plugin-dir,--plugin-dir"
 	DefaultCheckoutStrategy             = CheckoutStrategyBranch
 	DefaultCheckoutDepth                = 0

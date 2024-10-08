@@ -96,8 +96,12 @@ func (p *planStepRunner) isRemoteOpsErr(output string, err error) bool {
 // remotePlan runs a terraform plan command compatible with TFE remote
 // operations.
 func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []string, path string, tfDistribution terraform.Distribution, tfVersion *version.Version, planFile string, envs map[string]string) (string, error) {
+	baseCommand := []string{"plan", "-input=false", "-refresh", "-no-color"}
+	if ctx.CommandName == command.DraftPlan {
+		baseCommand = []string{"plan", "-input=false", "-no-color", "-refresh=false", "-lock=false"}
+	}
 	argList := [][]string{
-		{"plan", "-input=false", "-refresh", "-no-color"},
+		baseCommand,
 		extraArgs,
 		ctx.CommentArgs,
 	}
@@ -107,21 +111,23 @@ func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []stri
 		return output, err
 	}
 
-	// If using remote ops, we create our own "fake" planfile with the
-	// text output of the plan. We do this for two reasons:
-	// 1) Atlantis relies on there being a planfile on disk to detect which
-	// projects have outstanding plans.
-	// 2) Remote ops don't support the -out parameter so we can't save the
-	// plan. To ensure that what gets applied is the plan we printed to the PR,
-	// during the apply phase, we diff the output we stored in the fake
-	// planfile with the pending apply output.
-	planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
+	if ctx.CommandName != command.DraftPlan {
+		// If using remote ops, we create our own "fake" planfile with the
+		// text output of the plan. We do this for two reasons:
+		// 1) Atlantis relies on there being a planfile on disk to detect which
+		// projects have outstanding plans.
+		// 2) Remote ops don't support the -out parameter so we can't save the
+		// plan. To ensure that what gets applied is the plan we printed to the PR,
+		// during the apply phase, we diff the output we stored in the fake
+		// planfile with the pending apply output.
+		planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
 
-	// We also prepend our own remote ops header to the file so during apply we
-	// know this is a remote apply.
-	err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
-	if err != nil {
-		return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
+		// We also prepend our own remote ops header to the file so during apply we
+		// know this is a remote apply.
+		err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
+		if err != nil {
+			return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
+		}
 	}
 	if saveErr := p.PlanStore.Save(ctx, planFile); saveErr != nil {
 		return output, fmt.Errorf("saving plan: %w", saveErr)
@@ -143,11 +149,16 @@ func (p *planStepRunner) buildPlanCmd(ctx command.ProjectContext, extraArgs []st
 		envFileArgs = []string{"-var-file", envFile}
 	}
 
+	// The plan filename is passed as its own argument, so a path containing
+ 	// a space (Bitbucket Server allows spaces in repo owner names) needs no
+	// quoting. Quoting it here would make the quotes part of the filename.
+	baseCommand := []string{"plan", "-input=false", "-refresh", "-out", planFile)}
+	if ctx.CommandName == command.DraftPlan {
+		baseCommand = []string{"plan", "-input=false", "-refresh=false", "-lock=false"}
+	}
+
 	argList := [][]string{
-		// The plan filename is passed as its own argument, so a path containing
-		// a space (Bitbucket Server allows spaces in repo owner names) needs no
-		// quoting. Quoting it here would make the quotes part of the filename.
-		{"plan", "-input=false", "-refresh", "-out", planFile},
+		baseCommand,
 		tfVars,
 		extraArgs,
 		ctx.CommentArgs,
@@ -227,7 +238,7 @@ func (p *planStepRunner) runRemotePlan(
 
 	// updateStatusF will update the commit status and log any error.
 	updateStatusF := func(status models.CommitStatus, url string) {
-		if err := p.CommitStatusUpdater.UpdateProject(ctx, command.Plan, status, url, nil); err != nil {
+		if err := p.CommitStatusUpdater.UpdateProject(ctx, ctx.CommandName, status, url, nil); err != nil {
 			ctx.Log.Err("unable to update status: %s", err)
 		}
 	}
