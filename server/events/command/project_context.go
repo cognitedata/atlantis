@@ -133,6 +133,8 @@ type ProjectContext struct {
 
 	// TeamAllowlistChecker is used to check authorization on a project-level
 	TeamAllowlistChecker TeamAllowlistChecker
+	// DraftMode is true if we are running in draft mode
+	DraftMode bool
 }
 
 // SetProjectScopeTags adds ProjectContext tags to a new returned scope.

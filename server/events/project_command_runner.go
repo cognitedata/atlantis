@@ -344,7 +344,8 @@ func (p *DefaultProjectCommandRunner) StateRm(ctx command.ProjectContext) comman
 
 func (p *DefaultProjectCommandRunner) doApprovePolicies(ctx command.ProjectContext) (*models.PolicyCheckResults, string, error) {
 	// Acquire Atlantis lock for this repo/dir/workspace.
-	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), ctx.RepoLocksMode == valid.RepoLocksOnPlanMode)
+	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName),
+		!ctx.DraftMode && ctx.RepoLocksMode == valid.RepoLocksOnPlanMode)
 	if err != nil {
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
 	}

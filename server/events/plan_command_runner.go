@@ -177,7 +177,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 		ctx.Log.Warn("unable to get pull request status: %s. Continuing with mergeable and approved assumed false", err)
 	}
 
-	if p.DiscardApprovalOnPlan {
+	if p.DiscardApprovalOnPlan && !ctx.Draft {
 		if err = p.pullUpdater.VCSClient.DiscardReviews(ctx.Log, baseRepo, pull); err != nil {
 			ctx.Log.Err("failed to remove approvals: %s", err)
 		}
@@ -185,6 +185,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 
 	projectCmds, err := p.prjCmdBuilder.BuildPlanCommands(ctx, cmd)
 	if err != nil {
+		// @@@ finnag what here wth Draft?
 		if statusErr := p.commitStatusUpdater.UpdateCombined(ctx.Log, ctx.Pull.BaseRepo, ctx.Pull, models.FailedCommitStatus, command.Plan); statusErr != nil {
 			ctx.Log.Warn("unable to update commit status: %s", statusErr)
 		}
@@ -204,6 +205,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 				}
 				if pullStatus == nil {
 					// default to 0/0
+					// @@@ finnag here again, draft what
 					ctx.Log.Debug("setting VCS status to 0/0 success as no previous state was found")
 					if err := p.commitStatusUpdater.UpdateCombinedCount(ctx.Log, baseRepo, pull, models.SuccessCommitStatus, command.Plan, 0, 0); err != nil {
 						ctx.Log.Warn("unable to update commit status: %s", err)
@@ -211,6 +213,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 					return
 				}
 				ctx.Log.Debug("resetting VCS status")
+				// @@@ finnag draft
 				p.updateCommitStatus(ctx, *pullStatus, command.Plan)
 			} else {
 				// With a generic plan, we set successful commit statuses
@@ -236,7 +239,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 
 	// if the plan is generic, new plans will be generated based on changes
 	// discard previous plans that might not be relevant anymore
-	if !cmd.IsForSpecificProject() {
+	if !cmd.IsForSpecificProject() && !ctx.Draft {
 		ctx.Log.Debug("deleting previous plans and locks")
 		p.deletePlans(ctx)
 		_, err = p.lockingLocker.UnlockByPull(baseRepo.FullName, pull.Num)
@@ -255,7 +258,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 	}
 	ctx.CommandHasErrors = result.HasErrors()
 
-	if p.autoMerger.automergeEnabled(projectCmds) && result.HasErrors() {
+	if !ctx.Draft && p.autoMerger.automergeEnabled(projectCmds) && result.HasErrors() {
 		ctx.Log.Info("deleting plans because there were errors and automerge requires all plans succeed")
 		p.deletePlans(ctx)
 		result.PlansDeleted = true
@@ -275,19 +278,21 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 	p.updateCommitStatus(ctx, pullStatus, command.Plan)
 	p.updateCommitStatus(ctx, pullStatus, command.Apply)
 
-	// Runs policy checks step after all plans are successful.
-	// This step does not approve any policies that require approval.
-	if len(result.ProjectResults) > 0 &&
-		!(result.HasErrors() || result.PlansDeleted) {
-		ctx.Log.Info("Running policy check for '%s'", cmd.CommandName())
-		p.policyCheckCommandRunner.Run(ctx, policyCheckCmds)
-	} else if len(projectCmds) == 0 && !cmd.IsForSpecificProject() {
-		// If there were no projects modified, we set successful commit statuses
-		// with 0/0 projects planned/policy_checked/applied successfully because some users require
-		// the Atlantis status to be passing for all pull requests.
-		ctx.Log.Debug("setting VCS status to success with no projects found")
-		if err := p.commitStatusUpdater.UpdateCombinedCount(ctx.Log, baseRepo, pull, models.SuccessCommitStatus, command.PolicyCheck, 0, 0); err != nil {
-			ctx.Log.Warn("unable to update commit status: %s", err)
+	if !ctx.Draft {
+		// Runs policy checks step after all plans are successful.
+		// This step does not approve any policies that require approval.
+		if len(result.ProjectResults) > 0 &&
+			!(result.HasErrors() || result.PlansDeleted) {
+			ctx.Log.Info("Running policy check for '%s'", cmd.CommandName())
+			p.policyCheckCommandRunner.Run(ctx, policyCheckCmds)
+		} else if len(projectCmds) == 0 && !cmd.IsForSpecificProject() {
+			// If there were no projects modified, we set successful commit statuses
+			// with 0/0 projects planned/policy_checked/applied successfully because some users require
+			// the Atlantis status to be passing for all pull requests.
+			ctx.Log.Debug("setting VCS status to success with no projects found")
+			if err := p.commitStatusUpdater.UpdateCombinedCount(ctx.Log, baseRepo, pull, models.SuccessCommitStatus, command.PolicyCheck, 0, 0); err != nil {
+				ctx.Log.Warn("unable to update commit status: %s", err)
+			}
 		}
 	}
 }

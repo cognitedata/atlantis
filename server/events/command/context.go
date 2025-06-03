@@ -52,4 +52,7 @@ type Context struct {
 
 	// Set true if there were any errors during the command execution
 	CommandHasErrors bool
+
+	// Draft is true if we're in draft mode
+	Draft bool
 }
