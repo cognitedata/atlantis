@@ -1050,6 +1050,7 @@ func TestParse_VCSUsername(t *testing.T) {
 var PlanUsage = `Usage of plan:
   -d, --dir string         Which directory to run plan in relative to root of repo,
                            ex. 'child/dir'.
+  -t, --draft              Use draft mode when planning.
   -p, --project string     Which project to run plan for. Refers to the name of the
                            project configured in a repo config file. Cannot be used
                            at same time as workspace or dir flags.
