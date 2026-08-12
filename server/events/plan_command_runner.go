@@ -149,7 +149,7 @@ func (p *PlanCommandRunner) runAutoplan(ctx *command.Context) {
 	}
 
 	p.updateCommitStatus(ctx, pullStatus, command.Plan)
-	p.updateCommitStatus(ctx, pullStatus, command.Apply) // @@@ check drafplan here
+	p.updateCommitStatus(ctx, pullStatus, command.Apply)
 
 	// Check if there are any planned projects and if there are any errors or if plans are being deleted
 	if len(policyCheckCmds) > 0 &&
@@ -286,10 +286,8 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 		p.updateCommitStatus(ctx, pullStatus, command.Apply)
 	}
 
-	// Runs policy checks step after all plans are successful.
+	// Runs policy checks step after all plans and draftplans are successful.
 	// This step does not approve any policies that require approval.
-	// Draftplan also runs policy checks so that violations are visible
-	// before a real, locked plan is ever generated.
 	if (cmd.Name == command.Plan || cmd.Name == command.DraftPlan) && len(result.ProjectResults) > 0 &&
 		!(result.HasErrors() || result.PlansDeleted) {
 		ctx.Log.Info("Running policy check for %s", cmd.String())
@@ -329,7 +327,7 @@ func (p *PlanCommandRunner) updateCommitStatus(ctx *command.Context, pullStatus 
 			status = models.FailedCommitStatus
 		}
 	} else if commandName == command.Apply {
-		numSuccess = pullStatus.StatusCount(models.AppliedPlanStatus) + pullStatus.StatusCount(models.PlannedNoChangesPlanStatus)
+		numSuccess = pullStatus.StatusCount(models.AppliedPlanStatus) + pullStatus.StatusCount(models.PlannedNoChangesPlanStatus) + pullStatus.StatusCount(models.DraftPlannedNoChangesPlanStatus)
 		numErrored = pullStatus.StatusCount(models.ErroredApplyStatus)
 
 		if numErrored > 0 {

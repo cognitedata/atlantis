@@ -191,9 +191,6 @@ func TestPlanCommandRunner_DraftPlanTriggersPolicyCheck(t *testing.T) {
 
 	planCommandRunner.Run(ctx, cmd)
 
-	// A draftplan should still run the policy_check step for its projects,
-	// same as a real plan would, so violations surface before a real,
-	// locked plan is ever generated.
 	projectCommandRunner.VerifyWasCalledOnce().PolicyCheck(Any[command.ProjectContext]())
 	commitUpdater.VerifyWasCalledOnce().UpdateCombinedCount(
 		Any[logging.SimpleLogging](),
@@ -203,6 +200,66 @@ func TestPlanCommandRunner_DraftPlanTriggersPolicyCheck(t *testing.T) {
 		Eq[command.Name](command.PolicyCheck),
 		Eq(1),
 		Eq(1),
+	)
+}
+
+func TestPlanCommandRunner_ApplyStatusCountsDraftPlanNoChanges(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	tmp := t.TempDir()
+	backend, err := db.New(tmp)
+	Ok(t, err)
+
+	setup(t, func(tc *TestConfig) {
+		tc.backend = backend
+	})
+
+	logger := logging.NewNoopLogger(t)
+	scopeNull, _, _ := metrics.NewLoggingScope(logger, "atlantis")
+	modelPull := models.PullRequest{BaseRepo: testdata.GithubRepo, State: models.OpenPullState, Num: testdata.Pull.Num}
+	cmd := &events.CommentCommand{Name: command.Plan}
+	ctx := &command.Context{
+		User:     testdata.User,
+		Log:      logger,
+		Scope:    scopeNull,
+		Pull:     modelPull,
+		HeadRepo: testdata.GithubRepo,
+		Trigger:  command.CommentTrigger,
+	}
+
+	// "draftdir" only ever had a "no changes" draftplan; it will never get
+	// a real plan or apply, and shouldn't permanently block the PR's Apply
+	// status from going green.
+	_, err = backend.UpdatePullWithResults(modelPull, []command.ProjectResult{
+		{
+			Command:     command.DraftPlan,
+			RepoRelDir:  "draftdir",
+			Workspace:   "default",
+			PlanSuccess: &models.PlanSuccess{TerraformOutput: "No changes. Infrastructure is up-to-date."},
+		},
+	})
+	Ok(t, err)
+
+	When(projectCommandBuilder.BuildPlanCommands(ctx, cmd)).ThenReturn([]command.ProjectContext{
+		{CommandName: command.Plan, RepoRelDir: "mydir", Workspace: "default"},
+	}, nil)
+	When(projectCommandRunner.Plan(Any[command.ProjectContext]())).ThenReturn(command.ProjectResult{
+		Command:     command.Plan,
+		RepoRelDir:  "mydir",
+		Workspace:   "default",
+		PlanSuccess: &models.PlanSuccess{TerraformOutput: "No changes. Infrastructure is up-to-date."},
+	})
+
+	planCommandRunner.Run(ctx, cmd)
+
+	commitUpdater.VerifyWasCalledOnce().UpdateCombinedCount(
+		Any[logging.SimpleLogging](),
+		Any[models.Repo](),
+		Any[models.PullRequest](),
+		Eq[models.CommitStatus](models.SuccessCommitStatus),
+		Eq[command.Name](command.Apply),
+		Eq(2),
+		Eq(2),
 	)
 }
 
