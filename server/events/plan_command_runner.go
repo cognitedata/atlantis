@@ -309,8 +309,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 
 	// Runs policy checks step after all plans are successful.
 	// This step does not approve any policies that require approval.
-	// Draftplan also runs policy checks so that violations are visible
-	// before a real, locked plan is ever generated.
+	// Draftplan runs the same policy check step as Plan.
 	if (cmd.Name == command.Plan || cmd.Name == command.DraftPlan) && len(result.ProjectResults) > 0 &&
 		(!result.HasErrors() && !result.PlansDeleted) {
 		ctx.Log.Info("Running policy check for '%s'", cmd.CommandName())
@@ -351,7 +350,9 @@ func (p *PlanCommandRunner) updateCommitStatus(ctx *command.Context, pullStatus 
 			status = models.FailedCommitStatus
 		}
 	case command.Apply:
-		numSuccess = pullStatus.StatusCount(models.AppliedPlanStatus) + pullStatus.StatusCount(models.PlannedNoChangesPlanStatus)
+		// A draftplan with no changes has nothing to apply, same as a real
+		// plan with no changes, so it counts toward success here too.
+		numSuccess = pullStatus.StatusCount(models.AppliedPlanStatus) + pullStatus.StatusCount(models.PlannedNoChangesPlanStatus) + pullStatus.StatusCount(models.DraftPlannedNoChangesPlanStatus)
 		numErrored = pullStatus.StatusCount(models.ErroredApplyStatus)
 
 		if numErrored > 0 {
