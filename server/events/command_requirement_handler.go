@@ -48,13 +48,8 @@ func (a *DefaultCommandRequirementHandler) ValidatePlanProject(repoDir string, c
 }
 
 func (a *DefaultCommandRequirementHandler) ValidateApplyProject(repoDir string, ctx command.ProjectContext) (failure string, err error) {
-	// Blocks apply while the project's last recorded status is still a
-	// draftplan (an unlocked, unrefreshed preview). This only covers the
-	// window before a policy_check has run against it: once policy_check
-	// runs, it overwrites the recorded status, and apply is gated by the
-	// normal apply_requirements (mergeable/approved/policies-passed) tied
-	// to a subsequent real plan instead. Runs before the requirements loop
-	// so it can't be disabled by apply_requirements config.
+	// Blocks apply for a project whose last plan was a draftplan preview.
+	// Checked before apply_requirements so it can't be bypassed by config.
 	if ctx.ProjectPlanStatus == models.DraftPlannedPlanStatus || ctx.ProjectPlanStatus == models.DraftPlannedNoChangesPlanStatus {
 		return "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.", nil
 	}

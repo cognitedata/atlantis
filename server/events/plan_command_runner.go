@@ -350,8 +350,7 @@ func (p *PlanCommandRunner) updateCommitStatus(ctx *command.Context, pullStatus 
 			status = models.FailedCommitStatus
 		}
 	case command.Apply:
-		// A draftplan with no changes has nothing to apply, same as a real
-		// plan with no changes, so it counts toward success here too.
+		// A no-changes draftplan has nothing to apply either, so count it too.
 		numSuccess = pullStatus.StatusCount(models.AppliedPlanStatus) + pullStatus.StatusCount(models.PlannedNoChangesPlanStatus) + pullStatus.StatusCount(models.DraftPlannedNoChangesPlanStatus)
 		numErrored = pullStatus.StatusCount(models.ErroredApplyStatus)
 
