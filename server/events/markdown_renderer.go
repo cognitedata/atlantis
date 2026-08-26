@@ -67,12 +67,6 @@ type commonData struct {
 	HideUnchangedPlanComments bool
 	QuietPolicyChecks         bool
 	VcsRequestType            string
-	// IsDraftPolicyCheck is true if this is a policy_check comment for a
-	// draftplan. Named distinctly from models.PolicyCheckResults.IsDraftPlan
-	// (rather than reusing that name here) because policyCheckResultsData
-	// embeds both commonData and models.PolicyCheckResults - reusing the
-	// name would make .IsDraftPlan an ambiguous selector in templates.
-	IsDraftPolicyCheck bool
 }
 
 // errData is data about an error response.
@@ -212,19 +206,6 @@ func (m *MarkdownRenderer) Render(ctx *command.Context, res command.Result, cmd 
 
 func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []command.ProjectResult, common commonData) string {
 	vcsHost := ctx.Pull.BaseRepo.VCSHost.Type
-
-	// A policy_check comment's results are always all-draft or all-real:
-	// they come from a single atlantis plan/draftplan invocation's
-	// policyCheckCmds, which are never a mix of the two. So it's safe to
-	// derive this once from the first result rather than per-project.
-	if common.Command == policyCheckCommandTitle {
-		for _, result := range results {
-			if result.PolicyCheckResults != nil {
-				common.IsDraftPolicyCheck = result.PolicyCheckResults.IsDraftPlan
-				break
-			}
-		}
-	}
 
 	var resultsTmplData []projectResultTmplData
 	numPlanSuccesses := 0

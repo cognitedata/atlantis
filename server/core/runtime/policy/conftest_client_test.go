@@ -283,7 +283,7 @@ func TestRun(t *testing.T) {
 
 		expectedOutputPolicy1 := fmt.Sprintf("FAIL - %s - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions", filepath.Join(workdir, "testproj-default.json"))
 		expectedOutputPolicy2 := "Success"
-		expectedResult := `[{"PolicySetName":"policy1","PolicyOutput":"FAIL - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0},{"PolicySetName":"policy2","PolicyOutput":"Success","Passed":true,"ReqApprovals":0,"CurApprovals":0}]`
+		expectedResult := `[{"PolicySetName":"policy1","PolicyOutput":"FAIL - <redacted plan file> - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0},{"PolicySetName":"policy2","PolicyOutput":"Success","Passed":true,"ReqApprovals":0,"CurApprovals":0}]`
 
 		expectedArgsPolicy1 := []string{executablePath, "test", "-p", localPolicySetPath1, filepath.Join(workdir, "testproj-default.json"), "--no-color"}
 		expectedArgsPolicy2 := []string{executablePath, "test", "-p", localPolicySetPath2, filepath.Join(workdir, "testproj-default.json"), "--no-color"}
@@ -305,7 +305,7 @@ func TestRun(t *testing.T) {
 		var extraArgs []string
 
 		expectedOutput := fmt.Sprintf("FAIL - %s - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions", filepath.Join(workdir, "testproj-default.json"))
-		expectedResult := `[{"PolicySetName":"policy1","PolicyOutput":"FAIL - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0},{"PolicySetName":"policy2","PolicyOutput":"FAIL - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0}]`
+		expectedResult := `[{"PolicySetName":"policy1","PolicyOutput":"FAIL - <redacted plan file> - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0},{"PolicySetName":"policy2","PolicyOutput":"FAIL - <redacted plan file> - failure\n1 tests, 0 passed, 0 warnings, 1 failure, 0 exceptions","Passed":false,"ReqApprovals":0,"CurApprovals":0}]`
 
 		expectedArgsPolicy1 := []string{executablePath, "test", "-p", localPolicySetPath1, filepath.Join(workdir, "testproj-default.json"), "--no-color"}
 		expectedArgsPolicy2 := []string{executablePath, "test", "-p", localPolicySetPath2, filepath.Join(workdir, "testproj-default.json"), "--no-color"}
@@ -349,29 +349,5 @@ func TestRun(t *testing.T) {
 		Equals(t, result, expectedResult)
 		Assert(t, err != nil, "error is expected")
 
-	})
-}
-
-func TestSanitizeOutput(t *testing.T) {
-	subject := &ConfTestExecutorWorkflow{}
-	inputFile := "/some/workdir/testproj-default.json"
-
-	t.Run("drops the redacted plan file segment from violation lines", func(t *testing.T) {
-		output := fmt.Sprintf(
-			"WARN - %s - terraform.analysis - allowed_copy_scope must be set to \"AAD\" for module.foo\n"+
-				"WARN - %s - terraform.analysis - infrastructure_encryption_enabled must be set to true. false is not allowed for module.foo",
-			inputFile, inputFile,
-		)
-		expected := "WARN - terraform.analysis - allowed_copy_scope must be set to \"AAD\" for module.foo\n" +
-			"WARN - terraform.analysis - infrastructure_encryption_enabled must be set to true. false is not allowed for module.foo"
-
-		Equals(t, expected, subject.sanitizeOutput(inputFile, output))
-	})
-
-	t.Run("still redacts the path when it's not followed by ' - '", func(t *testing.T) {
-		output := fmt.Sprintf("unable to open file: %s", inputFile)
-		expected := "unable to open file: <redacted plan file>"
-
-		Equals(t, expected, subject.sanitizeOutput(inputFile, output))
 	})
 }

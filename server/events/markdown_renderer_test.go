@@ -1330,6 +1330,16 @@ Ran Policy Check for project: $projectname$ dir: $path$ workspace: $workspace$
 $$$diff
 2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions
 $$$
+
+---
+* :fast_forward: To **apply** all unapplied plans from this Pull Request, comment:
+  $$$shell
+  atlantis apply
+  $$$
+* :put_litter_in_its_place: To **delete** all plans and locks from this Pull Request, comment:
+  $$$shell
+  atlantis unlock
+  $$$
 `,
 		},
 		{
@@ -1371,6 +1381,16 @@ $$$
 $$$
 policy set: policy1: requires: 1 approval(s), have: 0.
 $$$
+
+---
+* :fast_forward: To **apply** all unapplied plans from this Pull Request, comment:
+  $$$shell
+  atlantis apply
+  $$$
+* :put_litter_in_its_place: To **delete** all plans and locks from this Pull Request, comment:
+  $$$shell
+  atlantis unlock
+  $$$
 `,
 		},
 	}
@@ -1403,100 +1423,6 @@ $$$
 			cmd := &events.CommentCommand{Name: command.PolicyCheck}
 			s := r.Render(ctx, res, cmd)
 			Equals(t, normalize(c.Expected), normalize(s))
-		})
-	}
-}
-
-// Test that the multi-project policy_check footer ("apply all"/"approve
-// all"/"unlock" CTAs) is also suppressed for a draftplan, same as the
-// single-project templates.
-func TestRenderProjectResults_DraftPlanPolicyCheck_MultiProject(t *testing.T) {
-	draftProjectResult := func(name string, passed bool) command.ProjectResult {
-		policyOutput := "2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions"
-		if !passed {
-			policyOutput = "FAIL - <redacted plan file> - main - WARNING: Null Resource creation is prohibited."
-		}
-		return command.ProjectResult{
-			ProjectCommandOutput: command.ProjectCommandOutput{
-				PolicyCheckResults: &models.PolicyCheckResults{
-					PolicySetResults: []models.PolicySetResult{
-						{
-							PolicySetName: "policy1",
-							PolicyOutput:  policyOutput,
-							Passed:        passed,
-							ReqApprovals:  1,
-						},
-					},
-					LockURL:            "lock-url",
-					RePlanCmd:          "atlantis plan -d " + name + " -w workspace",
-					ApplyCmd:           "atlantis apply -d " + name + " -w workspace",
-					ApprovePoliciesCmd: "atlantis approve_policies -d " + name + " -w workspace",
-					IsDraftPlan:        true,
-				},
-			},
-			Workspace:   "workspace",
-			RepoRelDir:  name,
-			ProjectName: name,
-		}
-	}
-
-	cases := []struct {
-		Description    string
-		ProjectResults []command.ProjectResult
-	}{
-		{
-			"all projects cleared",
-			[]command.ProjectResult{
-				draftProjectResult("project1", true),
-				draftProjectResult("project2", true),
-			},
-		},
-		{
-			"one project has violations",
-			[]command.ProjectResult{
-				draftProjectResult("project1", true),
-				draftProjectResult("project2", false),
-			},
-		},
-	}
-
-	r := events.NewMarkdownRenderer(
-		false,      // gitlabSupportsCommonMark
-		false,      // disableApplyAll
-		false,      // disableApply
-		false,      // disableMarkdownFolding
-		false,      // disableRepoLocking
-		false,      // enableDiffMarkdownFormat
-		"",         // markdownTemplateOverridesDir
-		"atlantis", // executableName
-		false,      // hideUnchangedPlanComments
-		false,      // quietPolicyChecks
-	)
-	ctx := &command.Context{
-		Log: logging.NewNoopLogger(t),
-		Pull: models.PullRequest{
-			BaseRepo: models.Repo{
-				VCSHost: models.VCSHost{
-					Type: models.Github,
-				},
-			},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.Description, func(t *testing.T) {
-			res := command.Result{ProjectResults: c.ProjectResults}
-			cmd := &events.CommentCommand{Name: command.PolicyCheck}
-			s := r.Render(ctx, res, cmd)
-			for _, forbidden := range []string{
-				"apply all unapplied plans",
-				"approve all unapplied plans",
-				"delete all plans and locks",
-				"atlantis apply",
-				"atlantis approve_policies",
-				"atlantis unlock",
-			} {
-				Assert(t, !strings.Contains(s, forbidden), "expected rendered comment not to contain %q, got:\n%s", forbidden, s)
-			}
 		})
 	}
 }
