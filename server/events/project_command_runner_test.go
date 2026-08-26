@@ -745,6 +745,86 @@ func (m mockURLGenerator) GenerateLockURL(lockID string) string {
 	return "https://" + lockID
 }
 
+// The policy_check step normally tries to re-acquire the lock to avoid some edge cases.
+// Ensure that it skips this step if it is being run as part of a draftplan.
+func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotTakeRealLock(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	cases := []struct {
+		description      string
+		isDraftPlan      bool
+		expectedRealLock bool
+	}{
+		{"real plan's policy check takes a real lock", false, true},
+		{"draftplan's policy check does not take a real lock", true, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			mockPolicyCheck := mocks.NewMockStepRunner()
+			mockWorkingDir := mocks.NewMockWorkingDir()
+			mockLocker := mocks.NewMockProjectLocker()
+
+			runner := events.DefaultProjectCommandRunner{
+				Locker:                mockLocker,
+				LockURLGenerator:      mockURLGenerator{},
+				PolicyCheckStepRunner: mockPolicyCheck,
+				WorkingDir:            mockWorkingDir,
+				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+			}
+
+			repoDir := t.TempDir()
+			When(mockWorkingDir.GetWorkingDir(
+				Any[models.Repo](),
+				Any[models.PullRequest](),
+				Any[string](),
+			)).ThenReturn(repoDir, nil)
+			When(mockWorkingDir.GitReadLock(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(func() {})
+
+			When(mockLocker.TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				AnyBool(),
+			)).ThenReturn(&events.TryLockResponse{
+				LockAcquired: true,
+				LockKey:      "lock-key",
+			}, nil)
+
+			When(mockPolicyCheck.Run(
+				Any[command.ProjectContext](),
+				Any[[]string](),
+				Any[string](),
+				Any[map[string]string](),
+			)).ThenReturn("Policy check passed", nil)
+
+			ctx := command.ProjectContext{
+				Log:               logging.NewNoopLogger(t),
+				Workspace:         "default",
+				RepoRelDir:        ".",
+				IsDraftPlan:       c.isDraftPlan,
+				RepoLocksMode:     valid.RepoLocksOnPlanMode,
+				CustomPolicyCheck: true,
+				Steps:             []valid.Step{{StepName: "policy_check"}},
+			}
+
+			res := runner.PolicyCheck(ctx)
+			Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+
+			mockLocker.VerifyWasCalledOnce().TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				Eq(c.expectedRealLock),
+			)
+		})
+	}
+}
+
 // Test that custom policy checks use configured policy set names instead of defaulting to "Custom".
 // This is a regression test for https://github.com/runatlantis/atlantis/pull/5331
 // where custom policy sets defaulting to "Custom" allowed any user to approve policies.

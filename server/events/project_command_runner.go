@@ -409,7 +409,10 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 	// we will attempt to capture the lock here but fail to get the working directory
 	// at which point we will unlock again to preserve functionality
 	// If we fail to capture the lock here (super unlikely) then we error out and the user is forced to replan
-	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), ctx.RepoLocksMode == valid.RepoLocksOnPlanMode)
+	// Skip the check to re-acquire a lock when running a draftplan.
+
+	useLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && !ctx.IsDraftPlan
+	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useLock)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
@@ -417,7 +420,11 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 	if !lockAttempt.LockAcquired {
 		return nil, lockAttempt.LockFailureReason, nil
 	}
-	ctx.Log.Debug("acquired lock for project.")
+	if useLock {
+		ctx.Log.Debug("acquired lock for project.")
+	} else {
+		ctx.Log.Debug("draftplan: skipped acquiring a real lock for project.")
+	}
 
 	// Acquire internal lock for the directory we're going to operate in.
 	// We should refactor this to keep the lock for the duration of plan and policy check since as of now
@@ -584,16 +591,23 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 }
 
 func (p *DefaultProjectCommandRunner) doPlan(ctx command.ProjectContext) (*models.PlanSuccess, string, error) {
-	// Acquire Atlantis lock for this repo/dir/workspace.
-	useRealLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && ctx.CommandName != command.DraftPlan
-	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useRealLock)
+	// Acquire Atlantis lock for this repo/dir/workspace. Draftplan never
+	// takes a real lock, so it uses a no-op locker that always trivially
+	// succeeds instead - useLock only controls which locker backs the
+	// lock, not whether TryLock succeeds.
+	useLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && ctx.CommandName != command.DraftPlan
+	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useLock)
 	if err != nil {
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
 	}
 	if !lockAttempt.LockAcquired {
 		return nil, lockAttempt.LockFailureReason, nil
 	}
-	ctx.Log.Debug("acquired lock for project")
+	if useLock {
+		ctx.Log.Debug("acquired lock for project")
+	} else {
+		ctx.Log.Debug("draftplan: skipped acquiring a real lock for project")
+	}
 
 	// Acquire internal lock for the directory we're going to operate in.
 	unlockFn, err := p.WorkingDirLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.Plan)
