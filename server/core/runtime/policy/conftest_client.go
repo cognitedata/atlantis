@@ -260,7 +260,13 @@ func (c *ConfTestExecutorWorkflow) Run(ctx command.ProjectContext, executablePat
 }
 
 func (c *ConfTestExecutorWorkflow) sanitizeOutput(inputFile string, output string) string {
-	return strings.ReplaceAll(output, inputFile, "<redacted plan file>")
+	// Redact the real path everywhere it appears first, regardless of
+	// context, so it can never leak through unredacted. Then drop the
+	// "<redacted plan file> - " segment specifically from conftest's
+	// "LEVEL - <file> - <namespace> - <message>" violation lines, since
+	// once redacted it's a constant, uninformative placeholder there.
+	redacted := strings.ReplaceAll(output, inputFile, "<redacted plan file>")
+	return strings.ReplaceAll(redacted, "<redacted plan file> - ", "")
 }
 
 func (c *ConfTestExecutorWorkflow) EnsureExecutorVersion(log logging.SimpleLogging, v *version.Version) (string, error) {
