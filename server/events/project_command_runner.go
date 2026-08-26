@@ -418,6 +418,8 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
 	}
 	if !lockAttempt.LockAcquired {
+		// Only false if we attempt to acquire the lock and we fail.
+		// So, for draftplans, when we skip lock acquisition, this will still be true.
 		return nil, lockAttempt.LockFailureReason, nil
 	}
 	if useLock {

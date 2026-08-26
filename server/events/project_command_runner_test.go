@@ -825,6 +825,64 @@ func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotTakeRealLock(t 
 	}
 }
 
+// Test that when TryLock fails to acquire the lock (e.g. another pull
+// request already holds it), doPolicyCheck returns the failure reason
+// immediately and never proceeds to clone/run policy check steps.
+func TestDefaultProjectCommandRunner_PolicyCheck_LockAcquisitionFails(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	mockPolicyCheck := mocks.NewMockStepRunner()
+	mockWorkingDir := mocks.NewMockWorkingDir()
+	mockLocker := mocks.NewMockProjectLocker()
+
+	runner := events.DefaultProjectCommandRunner{
+		Locker:                mockLocker,
+		LockURLGenerator:      mockURLGenerator{},
+		PolicyCheckStepRunner: mockPolicyCheck,
+		WorkingDir:            mockWorkingDir,
+		WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+	}
+
+	When(mockLocker.TryLock(
+		Any[logging.SimpleLogging](),
+		Any[models.PullRequest](),
+		Any[models.User](),
+		Any[string](),
+		Any[models.Project](),
+		AnyBool(),
+	)).ThenReturn(&events.TryLockResponse{
+		LockAcquired:      false,
+		LockFailureReason: "locked by another pull",
+	}, nil)
+
+	ctx := command.ProjectContext{
+		Log:               logging.NewNoopLogger(t),
+		Workspace:         "default",
+		RepoRelDir:        ".",
+		RepoLocksMode:     valid.RepoLocksOnPlanMode,
+		CustomPolicyCheck: true,
+		Steps:             []valid.Step{{StepName: "policy_check"}},
+	}
+
+	res := runner.PolicyCheck(ctx)
+
+	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+	Assert(t, res.PolicyCheckResults == nil, "not expecting policy check results")
+	Equals(t, "locked by another pull", res.Failure)
+
+	mockPolicyCheck.VerifyWasCalled(Never()).Run(
+		Any[command.ProjectContext](),
+		Any[[]string](),
+		Any[string](),
+		Any[map[string]string](),
+	)
+	mockWorkingDir.VerifyWasCalled(Never()).GetWorkingDir(
+		Any[models.Repo](),
+		Any[models.PullRequest](),
+		Any[string](),
+	)
+}
+
 // Test that custom policy checks use configured policy set names instead of defaulting to "Custom".
 // This is a regression test for https://github.com/runatlantis/atlantis/pull/5331
 // where custom policy sets defaulting to "Custom" allowed any user to approve policies.
