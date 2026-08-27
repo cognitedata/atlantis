@@ -1408,8 +1408,7 @@ $$$
 }
 
 // Test that the multi-project policy_check footer ("apply all"/"approve
-// all"/"unlock" CTAs) is also suppressed for a draftplan, same as the
-// single-project templates.
+// all"/"unlock" CTAs) is suppressed for a draftplan
 func TestRenderProjectResults_DraftPlanPolicyCheck_MultiProject(t *testing.T) {
 	draftProjectResult := func(name string, passed bool) command.ProjectResult {
 		policyOutput := "2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions"
