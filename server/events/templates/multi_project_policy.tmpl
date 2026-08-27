@@ -14,7 +14,7 @@
 {{ end -}}
 {{ end -}}
 {{ if ne .DisableApplyAll true -}}
-{{ if and (gt (len .Results) 0) (not .PlansDeleted) -}}
+{{ if and (and (gt (len .Results) 0) (not .PlansDeleted)) (not .IsDraftPolicyCheck) -}}
 * :fast_forward: To **apply** all unapplied plans from this {{ .VcsRequestType }}, comment:
   ```shell
   {{ .ExecutableName }} apply
