@@ -470,6 +470,7 @@ func (r *RedisDB) projectResultToProject(p command.ProjectResult) models.Project
 		Workspace:    p.Workspace,
 		RepoRelDir:   p.RepoRelDir,
 		ProjectName:  p.ProjectName,
+		IsDraftPlan:  p.Command == command.DraftPlan || (p.PolicyCheckResults != nil && p.PolicyCheckResults.IsDraftPlan),
 		PolicyStatus: p.PolicyStatus(),
 		Status:       p.PlanStatus(),
 	}

@@ -571,6 +571,7 @@ func (b *BoltDB) projectResultToProject(p command.ProjectResult) models.ProjectS
 		Workspace:    p.Workspace,
 		RepoRelDir:   p.RepoRelDir,
 		ProjectName:  p.ProjectName,
+		IsDraftPlan:  p.Command == command.DraftPlan || (p.PolicyCheckResults != nil && p.PolicyCheckResults.IsDraftPlan),
 		PolicyStatus: p.PolicyStatus(),
 		Status:       p.PlanStatus(),
 	}

@@ -75,6 +75,7 @@ projects:
   repo_locks: # Available since v0.17.0
     mode: on_plan
   custom_policy_check: false # Available since v0.17.0
+  draft_plan_policy_check: false # Skip policy checks triggered by draftplan
   autoplan: # Available since v0.1.0
     when_modified: ["*.tf", "../modules/**/*.tf", ".terraform.lock.hcl"]
     enabled: true

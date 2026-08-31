@@ -234,6 +234,15 @@ func TestAggregateApplyRequirements_ValidateApplyProject(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 		},
+		{
+			name: "fail when draft marker survives policy check",
+			ctx: command.ProjectContext{
+				IsDraftPlan:       true,
+				ProjectPlanStatus: models.PassedPolicyCheckStatus,
+			},
+			wantFailure: "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.",
+			wantErr:     assert.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -36,6 +36,8 @@ func TestProjectCommandContextBuilder_PullStatus(t *testing.T) {
 			Name:  valid.DefaultWorkflowName,
 			Apply: valid.DefaultApplyStage,
 		},
+		PolicyCheck:          true,
+		DraftPlanPolicyCheck: true,
 	}
 
 	pullStatus := &models.PullStatus{
@@ -138,10 +140,11 @@ func TestPolicyCheckProjectCommandContextBuilder_BuildProjectContext(t *testing.
 	}
 
 	projCfg := valid.MergedProjectCfg{
-		RepoRelDir: "dir1",
-		Workspace:  "default",
-		Name:       "project1",
-		PolicyCheck: true,
+		RepoRelDir:           "dir1",
+		Workspace:            "default",
+		Name:                 "project1",
+		PolicyCheck:          true,
+		DraftPlanPolicyCheck: true,
 		Workflow: valid.Workflow{
 			Name: valid.DefaultWorkflowName,
 			Plan: valid.DefaultPlanStage,
@@ -182,5 +185,49 @@ func TestPolicyCheckProjectCommandContextBuilder_BuildProjectContext(t *testing.
 
 		assert.Len(t, result, 1)
 		assert.Equal(t, command.DraftPlan, result[0].CommandName)
+	})
+
+	t.Run("draftplan policy checks can be disabled independently", func(t *testing.T) {
+		disabledCfg := projCfg
+		disabledCfg.DraftPlanPolicyCheck = false
+		result := subject.BuildProjectContext(commandCtx, command.DraftPlan, "", disabledCfg, []string{}, "some/dir", false, false, false, false, false, terraformClient)
+
+		assert.Len(t, result, 1)
+		assert.Equal(t, command.DraftPlan, result[0].CommandName)
+	})
+
+	t.Run("persisted draftplan marker is propagated to apply context", func(t *testing.T) {
+		ctx := &command.Context{
+			Log: logging.NewNoopLogger(t),
+			PullStatus: &models.PullStatus{Projects: []models.ProjectStatus{
+				{
+					ProjectName: "project1",
+					RepoRelDir:  "dir1",
+					IsDraftPlan: true,
+				},
+			}},
+		}
+		result := subject.BuildProjectContext(ctx, command.Apply, "", projCfg, []string{}, "some/dir", false, false, false, false, false, terraformClient)
+
+		assert.Len(t, result, 1)
+		assert.True(t, result[0].IsDraftPlan)
+	})
+
+	t.Run("persisted draftplan marker does not affect a real plan", func(t *testing.T) {
+		ctx := &command.Context{
+			Log: logging.NewNoopLogger(t),
+			PullStatus: &models.PullStatus{Projects: []models.ProjectStatus{
+				{
+					ProjectName: "project1",
+					RepoRelDir:  "dir1",
+					IsDraftPlan: true,
+				},
+			}},
+		}
+		result := subject.BuildProjectContext(ctx, command.Plan, "", projCfg, []string{}, "some/dir", false, false, false, false, false, terraformClient)
+
+		assert.Len(t, result, 2)
+		assert.False(t, result[0].IsDraftPlan)
+		assert.False(t, result[1].IsDraftPlan)
 	})
 }
