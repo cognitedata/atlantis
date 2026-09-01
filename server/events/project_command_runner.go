@@ -593,10 +593,8 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 }
 
 func (p *DefaultProjectCommandRunner) doPlan(ctx command.ProjectContext) (*models.PlanSuccess, string, error) {
-	// Acquire Atlantis lock for this repo/dir/workspace. Draftplan never
-	// takes a real lock, so it uses a no-op locker that always trivially
-	// succeeds instead - useLock only controls which locker backs the
-	// lock, not whether TryLock succeeds.
+	// Acquire Atlantis lock for this repo/dir/workspace.
+	// Draftplan acquires a real lock; it instead uses a no-op locker that always trivially succeeds.
 	useLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && ctx.CommandName != command.DraftPlan
 	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useLock)
 	if err != nil {

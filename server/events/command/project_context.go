@@ -181,6 +181,14 @@ func (p ProjectContext) GetPolicyCheckResultFileName() string {
 	return fmt.Sprintf("%s-%s-policyout.json", projName, p.Workspace)
 }
 
+// IsDraft returns true if this stage is part of a draftplan: either the
+// draftplan command itself, or a policy_check/show stage that followed one
+// (those run with CommandName PolicyCheck, not DraftPlan, so IsDraftPlan is
+// what carries the signal forward for them).
+func (p ProjectContext) IsDraft() bool {
+	return p.CommandName == DraftPlan || p.IsDraftPlan
+}
+
 // Gets a unique identifier for the current pull request as a single string
 func (p ProjectContext) PullInfo() string {
 	normalizedOwner := strings.ReplaceAll(p.BaseRepo.Owner, "/", "-")

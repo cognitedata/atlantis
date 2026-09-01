@@ -35,7 +35,7 @@ func (p *planTypeStepRunnerDelegate) isRemotePlan(planFile string) (bool, error)
 }
 
 func (p *planTypeStepRunnerDelegate) Run(ctx command.ProjectContext, extraArgs []string, path string, envs map[string]string) (string, error) {
-	planFile := filepath.Join(path, PlanFilenameForContext(ctx))
+	planFile := filepath.Join(path, GetPlanFilename(ctx.Workspace, ctx.ProjectName, ctx.IsDraft()))
 	remotePlan, err := p.isRemotePlan(planFile)
 
 	if err != nil {

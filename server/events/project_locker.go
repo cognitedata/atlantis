@@ -80,12 +80,6 @@ func (p *DefaultProjectLocker) TryLock(log logging.SimpleLogging, pull models.Pu
 	return &TryLockResponse{
 		LockAcquired: true,
 		UnlockFn: func() error {
-			// Release through the same locker used to acquire (NoOpLocker
-			// if repoLocking is false). Lock keys don't include the pull
-			// number (see GenerateLockKey), so releasing through Locker
-			// when NoOpLocker was used to acquire could delete an
-			// unrelated lock on the same project/workspace held by a
-			// different pull request.
 			_, err := locker.Unlock(lockAttempt.LockKey)
 			return err
 		},

@@ -57,7 +57,7 @@ func (p *planStepRunner) Run(ctx command.ProjectContext, extraArgs []string, pat
 		tfVersion = ctx.TerraformVersion
 	}
 
-	planFile := filepath.Join(path, PlanFilenameForContext(ctx))
+	planFile := filepath.Join(path, GetPlanFilename(ctx.Workspace, ctx.ProjectName, ctx.IsDraft()))
 	planCmd := p.buildPlanCmd(ctx, extraArgs, path, tfVersion, planFile)
 	output, err := p.TerraformExecutor.RunCommandWithVersion(ctx, filepath.Clean(path), planCmd, envs, tfDistribution, tfVersion, ctx.Workspace)
 	if p.isRemoteOpsErr(output, err) {
@@ -97,16 +97,16 @@ func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []stri
 		return output, err
 	}
 
-	// If using remote ops, we create our own "fake" planfile with the
-	// text output of the plan. We do this for three reasons:
+	// If using remote ops, terraform doesn't write a planfile itself since
+	// -out isn't supported, so we write the plan's text output to the
+	// planfile path ourselves (below). We do this for three reasons:
 	// 1) For a real plan, Atlantis relies on there being a planfile on disk
 	// (PendingPlanFinder's ".tfplan" scan) to detect which projects have
-	// outstanding plans. A draftplan's planfile uses a different extension
-	// (see PlanFilenameForContext) and is deliberately invisible to that scan.
-	// 2) Remote ops don't support the -out parameter so we can't save the
-	// plan. To ensure that what gets applied is the plan we printed to the PR,
-	// during the apply phase, we diff the output we stored in the fake
-	// planfile with the pending apply output.
+	// outstanding plans. Draftplan planfiles use a different extension so
+	// they're never picked up by that scan.
+	// 2) To ensure that what gets applied is the plan we printed to the PR,
+	// during the apply phase we diff the output stored here against the
+	// pending apply output.
 	// 3) The show/policy_check steps need a planfile on disk to run
 	// "terraform show" against, including for draftplan.
 	planOutput := StripRefreshingFromPlanOutput(output, tfVersion)

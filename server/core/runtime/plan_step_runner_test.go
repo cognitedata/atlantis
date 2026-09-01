@@ -481,7 +481,8 @@ Plan: 0 to add, 0 to change, 1 to destroy.`), "expect plan success")
 			expRemotePlanArgs := []string{"plan", "-input=false", "-refresh", "-no-color", "extra", "args", "comment", "args"}
 			Equals(t, expRemotePlanArgs, asyncTf.CalledArgs)
 
-			// Verify that the fake plan file we write has the correct contents.
+			// Verify that the planfile we write ourselves (since remote ops
+			// doesn't support -out) has the correct contents.
 			bytes, err := os.ReadFile(filepath.Join(absProjectPath, "default.tfplan"))
 			Ok(t, err)
 			Assert(t, strings.HasPrefix(string(bytes), "Atlantis: this plan was created by remote ops"), "expect remote plan")
@@ -495,9 +496,9 @@ Plan: 0 to add, 0 to change, 1 to destroy.`), "expect plan success")
 }
 
 func TestRun_RemoteOps_DraftPlan(t *testing.T) {
-	// Even for remote ops, draftplan must leave a (fake) planfile on disk so
-	// that show/policy_check have something to read, unlike before when
-	// draftplan skipped writing it entirely.
+	// Even for remote ops, draftplan must leave a planfile on disk so that
+	// show/policy_check have something to read, unlike before when draftplan
+	// skipped writing it entirely.
 	logger := logging.NewNoopLogger(t)
 	ctx := command.ProjectContext{
 		Log:                logger,
@@ -569,8 +570,8 @@ func TestRun_RemoteOps_DraftPlan(t *testing.T) {
 	expRemotePlanArgs := []string{"plan", "-input=false", "-no-color", "-refresh=false", "-lock=false", "extra", "args", "comment", "args"}
 	Equals(t, expRemotePlanArgs, asyncTf.CalledArgs)
 
-	// Verify that the fake plan file still gets written for draftplan, at
-	// its own path distinct from a real plan's.
+	// Verify that the planfile still gets written for draftplan, at its own
+	// path distinct from a real plan's.
 	bytes, err := os.ReadFile(filepath.Join(absProjectPath, "default.draftplan"))
 	Ok(t, err)
 	Assert(t, strings.HasPrefix(string(bytes), "Atlantis: this plan was created by remote ops"), "expect remote plan")

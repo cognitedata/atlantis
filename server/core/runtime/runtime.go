@@ -89,42 +89,19 @@ func MustConstraint(constraint string) version.Constraints {
 	return c
 }
 
-// GetPlanFilename returns the filename (not the path) of the generated tf plan
-// given a workspace and project name.
-func GetPlanFilename(workspace string, projName string) string {
+// GetPlanFilename returns the filename (not the path) of the generated tf
+// plan given a workspace, project name, and whether this is a draftplan.
+// Draftplans use extension .draftplan, and real plans use .tfplan.
+func GetPlanFilename(workspace string, projName string, isDraft bool) string {
+	ext := "tfplan"
+	if isDraft {
+		ext = "draftplan"
+	}
 	if projName == "" {
-		return fmt.Sprintf("%s.tfplan", workspace)
+		return fmt.Sprintf("%s.%s", workspace, ext)
 	}
 	projName = strings.ReplaceAll(projName, "/", planfileSlashReplace)
-	return fmt.Sprintf("%s-%s.tfplan", projName, workspace)
-}
-
-// GetDraftPlanFilename returns the filename (not the path) of the generated tf
-// plan for a draftplan preview. It intentionally uses a different extension
-// (not .tfplan) so a draftplan's plan file is always distinct from a real
-// plan's: apply/import/state_rm/unlock resolve paths via GetPlanFilename and
-// so can never find or act on a draftplan's file, and PendingPlanFinder's
-// ".tfplan" extension scan (used by unlock and to clear stale plans before a
-// new plan) naturally skips it too.
-func GetDraftPlanFilename(workspace string, projName string) string {
-	if projName == "" {
-		return fmt.Sprintf("%s.draftplan", workspace)
-	}
-	projName = strings.ReplaceAll(projName, "/", planfileSlashReplace)
-	return fmt.Sprintf("%s-%s.draftplan", projName, workspace)
-}
-
-// PlanFilenameForContext returns GetDraftPlanFilename's result for a
-// draftplan or the policy_check/show steps that follow one (ctx.IsDraftPlan
-// is what carries that across, since ctx.CommandName is PolicyCheck, not
-// DraftPlan, for those steps), and GetPlanFilename's otherwise. Steps that
-// must never resolve to a draftplan's file (apply, import, state_rm) should
-// keep calling GetPlanFilename directly instead of this.
-func PlanFilenameForContext(ctx command.ProjectContext) string {
-	if ctx.CommandName == command.DraftPlan || ctx.IsDraftPlan {
-		return GetDraftPlanFilename(ctx.Workspace, ctx.ProjectName)
-	}
-	return GetPlanFilename(ctx.Workspace, ctx.ProjectName)
+	return fmt.Sprintf("%s-%s.%s", projName, workspace, ext)
 }
 
 // isRemotePlan returns true if planContents are from a plan that was generated

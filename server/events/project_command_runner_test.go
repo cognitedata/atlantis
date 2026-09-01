@@ -118,10 +118,6 @@ func TestDefaultProjectCommandRunner_Plan(t *testing.T) {
 }
 
 // Test that doPlan doesn't actually acquire the lock during draftplan.
-// The planfile-location half of "draftplan doesn't affect
-// the real plan process" is already covered with real filesystem checks by
-// TestRun_DraftPlan/TestRun_RemoteOps_DraftPlan in plan_step_runner_test.go;
-// this covers the lock half at the level a real caller invokes.
 func TestDefaultProjectCommandRunner_Plan_DraftPlanDoesNotTakeRealLock(t *testing.T) {
 	RegisterMockTestingT(t)
 
