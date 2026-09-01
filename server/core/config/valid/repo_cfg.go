@@ -186,6 +186,7 @@ type Project struct {
 	RepoLocks                 *RepoLocks
 	ExecutionOrderGroup       int
 	PolicyCheck               *bool
+	DraftPlanPolicyCheck      *bool
 	CustomPolicyCheck         *bool
 	SilencePRComments         []string
 }

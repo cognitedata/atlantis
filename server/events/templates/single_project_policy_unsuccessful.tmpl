@@ -3,7 +3,7 @@
 Ran {{ .Command }} for {{ if $result.ProjectName }}project: `{{ $result.ProjectName }}` {{ end }}dir: `{{ $result.RepoRelDir }}` workspace: `{{ $result.Workspace }}`
 
 {{ $result.Rendered }}
-{{ if ne .DisableApplyAll true -}}
+{{ if and (ne .DisableApplyAll true) (not .IsDraftPolicyCheck) -}}
 ---
 * :heavy_check_mark: To **approve** all unapplied plans from this {{ .VcsRequestType }}, comment:
   ```shell

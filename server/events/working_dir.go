@@ -719,7 +719,7 @@ func (w *FileWorkspace) SetCheckForUpstreamChanges() {
 }
 
 func (w *FileWorkspace) DeletePlan(logger logging.SimpleLogging, r models.Repo, p models.PullRequest, workspace string, projectPath string, projectName string) error {
-	planPath := filepath.Join(w.cloneDir(r, p, workspace), projectPath, runtime.GetPlanFilename(workspace, projectName))
+	planPath := filepath.Join(w.cloneDir(r, p, workspace), projectPath, runtime.GetPlanFilename(workspace, projectName, false))
 	logger.Info("Deleting plan: " + planPath)
 	return utils.RemoveIgnoreNonExistent(planPath)
 }

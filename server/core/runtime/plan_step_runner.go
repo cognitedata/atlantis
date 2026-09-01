@@ -57,7 +57,7 @@ func (p *planStepRunner) Run(ctx command.ProjectContext, extraArgs []string, pat
 		tfVersion = ctx.TerraformVersion
 	}
 
-	planFile := filepath.Join(path, GetPlanFilename(ctx.Workspace, ctx.ProjectName))
+	planFile := filepath.Join(path, GetPlanFilename(ctx.Workspace, ctx.ProjectName, ctx.IsDraft()))
 	planCmd := p.buildPlanCmd(ctx, extraArgs, path, tfVersion, planFile)
 	output, err := p.TerraformExecutor.RunCommandWithVersion(ctx, filepath.Clean(path), planCmd, envs, tfDistribution, tfVersion, ctx.Workspace)
 	if p.isRemoteOpsErr(output, err) {
@@ -97,23 +97,25 @@ func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []stri
 		return output, err
 	}
 
-	if ctx.CommandName != command.DraftPlan {
-		// If using remote ops, we create our own "fake" planfile with the
-		// text output of the plan. We do this for two reasons:
-		// 1) Atlantis relies on there being a planfile on disk to detect which
-		// projects have outstanding plans.
-		// 2) Remote ops don't support the -out parameter so we can't save the
-		// plan. To ensure that what gets applied is the plan we printed to the PR,
-		// during the apply phase, we diff the output we stored in the fake
-		// planfile with the pending apply output.
-		planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
+	// If using remote ops, terraform doesn't write a planfile itself since
+	// -out isn't supported, so we write the plan's text output to the
+	// planfile path ourselves (below). We do this for three reasons:
+	// 1) For a real plan, Atlantis relies on there being a planfile on disk
+	// (PendingPlanFinder's ".tfplan" scan) to detect which projects have
+	// outstanding plans. Draftplan planfiles use a different extension so
+	// they're never picked up by that scan.
+	// 2) To ensure that what gets applied is the plan we printed to the PR,
+	// during the apply phase we diff the output stored here against the
+	// pending apply output.
+	// 3) The show/policy_check steps need a planfile on disk to run
+	// "terraform show" against, including for draftplan.
+	planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
 
-		// We also prepend our own remote ops header to the file so during apply we
-		// know this is a remote apply.
-		err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
-		if err != nil {
-			return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
-		}
+	// We also prepend our own remote ops header to the file so during apply we
+	// know this is a remote apply.
+	err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
+	if err != nil {
+		return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
 	}
 
 	return p.fmtPlanOutput(output, tfVersion), nil
@@ -136,7 +138,7 @@ func (p *planStepRunner) buildPlanCmd(ctx command.ProjectContext, extraArgs []st
 	// have spaces in its repo owner names.
 	baseCommand := []string{"plan", "-input=false", "-refresh", "-out", fmt.Sprintf("%q", planFile)}
 	if ctx.CommandName == command.DraftPlan {
-		baseCommand = []string{"plan", "-input=false", "-refresh=false", "-lock=false"}
+		baseCommand = []string{"plan", "-input=false", "-refresh=false", "-lock=false", "-out", fmt.Sprintf("%q", planFile)}
 	}
 
 	argList := [][]string{

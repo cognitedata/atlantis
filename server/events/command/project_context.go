@@ -78,6 +78,9 @@ type ProjectContext struct {
 	PullReqStatus models.PullReqStatus
 	// CurrentProjectPlanStatus is the status of the current project prior to this command.
 	ProjectPlanStatus models.ProjectPlanStatus
+	// IsDraftPlan is true if this stage was triggered by a draftplan command
+	// (or the policy_check that followed one) rather than a full plan.
+	IsDraftPlan bool
 	//PullStatus is the status of the current pull request prior to this command.
 	PullStatus *models.PullStatus
 	// ProjectPolicyStatus is the status of policy sets of the current project prior to this command.
@@ -176,6 +179,14 @@ func (p ProjectContext) GetPolicyCheckResultFileName() string {
 	}
 	projName := strings.ReplaceAll(p.ProjectName, "/", planfileSlashReplace)
 	return fmt.Sprintf("%s-%s-policyout.json", projName, p.Workspace)
+}
+
+// IsDraft returns true if this stage is part of a draftplan: either the
+// draftplan command itself, or a policy_check/show stage that followed one
+// (those run with CommandName PolicyCheck, not DraftPlan, so IsDraftPlan is
+// what carries the signal forward for them).
+func (p ProjectContext) IsDraft() bool {
+	return p.CommandName == DraftPlan || p.IsDraftPlan
 }
 
 // Gets a unique identifier for the current pull request as a single string

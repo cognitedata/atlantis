@@ -42,6 +42,7 @@ type Project struct {
 	RepoLocks                 *RepoLocks `yaml:"repo_locks,omitempty"`
 	ExecutionOrderGroup       *int       `yaml:"execution_order_group,omitempty"`
 	PolicyCheck               *bool      `yaml:"policy_check,omitempty"`
+	DraftPlanPolicyCheck      *bool      `yaml:"draft_plan_policy_check,omitempty"`
 	CustomPolicyCheck         *bool      `yaml:"custom_policy_check,omitempty"`
 	SilencePRComments         []string   `yaml:"silence_pr_comments,omitempty"`
 }
@@ -181,6 +182,9 @@ func (p Project) ToValid() valid.Project {
 
 	if p.PolicyCheck != nil {
 		v.PolicyCheck = p.PolicyCheck
+	}
+	if p.DraftPlanPolicyCheck != nil {
+		v.DraftPlanPolicyCheck = p.DraftPlanPolicyCheck
 	}
 
 	if p.CustomPolicyCheck != nil {

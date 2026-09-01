@@ -1292,6 +1292,214 @@ $$$
 	}
 }
 
+func TestRenderProjectResults_DraftPlanPolicyCheck(t *testing.T) {
+	cases := []struct {
+		Description    string
+		ProjectResults []command.ProjectResult
+		Expected       string
+	}{
+		{
+			"draftplan policy check cleared shows no apply/replan CTA",
+			[]command.ProjectResult{
+				{
+					ProjectCommandOutput: command.ProjectCommandOutput{
+						PolicyCheckResults: &models.PolicyCheckResults{
+							PolicySetResults: []models.PolicySetResult{
+								{
+									PolicySetName: "policy1",
+									PolicyOutput:  "2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions",
+									Passed:        true,
+									ReqApprovals:  1,
+								},
+							},
+							LockURL:     "lock-url",
+							RePlanCmd:   "atlantis plan -d path -w workspace",
+							ApplyCmd:    "atlantis apply -d path -w workspace",
+							IsDraftPlan: true,
+						},
+					},
+					Workspace:   "workspace",
+					RepoRelDir:  "path",
+					ProjectName: "projectname",
+				},
+			},
+			`
+Ran Policy Check for project: $projectname$ dir: $path$ workspace: $workspace$
+
+#### Policy Set: $policy1$
+$$$diff
+2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions
+$$$
+`,
+		},
+		{
+			"draftplan policy check with violations shows approval status but no apply CTA",
+			[]command.ProjectResult{
+				{
+					ProjectCommandOutput: command.ProjectCommandOutput{
+						PolicyCheckResults: &models.PolicyCheckResults{
+							PolicySetResults: []models.PolicySetResult{
+								{
+									PolicySetName: "policy1",
+									PolicyOutput:  "FAIL - <redacted plan file> - main - WARNING: Null Resource creation is prohibited.",
+									Passed:        false,
+									ReqApprovals:  1,
+								},
+							},
+							LockURL:            "lock-url",
+							RePlanCmd:          "atlantis plan -d path -w workspace",
+							ApplyCmd:           "atlantis apply -d path -w workspace",
+							ApprovePoliciesCmd: "atlantis approve_policies -d path -w workspace",
+							IsDraftPlan:        true,
+						},
+					},
+					Workspace:   "workspace",
+					RepoRelDir:  "path",
+					ProjectName: "projectname",
+				},
+			},
+			`
+Ran Policy Check for project: $projectname$ dir: $path$ workspace: $workspace$
+
+#### Policy Set: $policy1$
+$$$diff
+FAIL - <redacted plan file> - main - WARNING: Null Resource creation is prohibited.
+$$$
+
+
+#### Policy Approval Status:
+$$$
+policy set: policy1: requires: 1 approval(s), have: 0.
+$$$
+`,
+		},
+	}
+
+	r := events.NewMarkdownRenderer(
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.Description, func(t *testing.T) {
+			res := command.Result{ProjectResults: c.ProjectResults}
+			cmd := &events.CommentCommand{Name: command.PolicyCheck}
+			s := r.Render(ctx, res, cmd)
+			Equals(t, normalize(c.Expected), normalize(s))
+		})
+	}
+}
+
+// Test that the multi-project policy_check footer ("apply all"/"approve
+// all"/"unlock" CTAs) is suppressed for a draftplan
+func TestRenderProjectResults_DraftPlanPolicyCheck_MultiProject(t *testing.T) {
+	draftProjectResult := func(name string, passed bool) command.ProjectResult {
+		policyOutput := "2 tests, 2 passed, 0 warnings, 0 failure, 0 exceptions"
+		if !passed {
+			policyOutput = "FAIL - <redacted plan file> - main - WARNING: Null Resource creation is prohibited."
+		}
+		return command.ProjectResult{
+			ProjectCommandOutput: command.ProjectCommandOutput{
+				PolicyCheckResults: &models.PolicyCheckResults{
+					PolicySetResults: []models.PolicySetResult{
+						{
+							PolicySetName: "policy1",
+							PolicyOutput:  policyOutput,
+							Passed:        passed,
+							ReqApprovals:  1,
+						},
+					},
+					LockURL:            "lock-url",
+					RePlanCmd:          "atlantis plan -d " + name + " -w workspace",
+					ApplyCmd:           "atlantis apply -d " + name + " -w workspace",
+					ApprovePoliciesCmd: "atlantis approve_policies -d " + name + " -w workspace",
+					IsDraftPlan:        true,
+				},
+			},
+			Workspace:   "workspace",
+			RepoRelDir:  name,
+			ProjectName: name,
+		}
+	}
+
+	cases := []struct {
+		Description    string
+		ProjectResults []command.ProjectResult
+	}{
+		{
+			"all projects cleared",
+			[]command.ProjectResult{
+				draftProjectResult("project1", true),
+				draftProjectResult("project2", true),
+			},
+		},
+		{
+			"one project has violations",
+			[]command.ProjectResult{
+				draftProjectResult("project1", true),
+				draftProjectResult("project2", false),
+			},
+		},
+	}
+
+	r := events.NewMarkdownRenderer(
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.Description, func(t *testing.T) {
+			res := command.Result{ProjectResults: c.ProjectResults}
+			cmd := &events.CommentCommand{Name: command.PolicyCheck}
+			s := r.Render(ctx, res, cmd)
+			for _, forbidden := range []string{
+				"apply all unapplied plans",
+				"approve all unapplied plans",
+				"delete all plans and locks",
+				"atlantis apply",
+				"atlantis approve_policies",
+				"atlantis unlock",
+			} {
+				Assert(t, !strings.Contains(s, forbidden), "expected rendered comment not to contain %q, got:\n%s", forbidden, s)
+			}
+		})
+	}
+}
+
 func TestRenderProjectResultsWithQuietPolicyChecks(t *testing.T) {
 	cases := []struct {
 		Description    string

@@ -89,14 +89,19 @@ func MustConstraint(constraint string) version.Constraints {
 	return c
 }
 
-// GetPlanFilename returns the filename (not the path) of the generated tf plan
-// given a workspace and project name.
-func GetPlanFilename(workspace string, projName string) string {
+// GetPlanFilename returns the filename (not the path) of the generated tf
+// plan given a workspace, project name, and whether this is a draftplan.
+// Draftplans use extension .draftplan, and real plans use .tfplan.
+func GetPlanFilename(workspace string, projName string, isDraft bool) string {
+	ext := "tfplan"
+	if isDraft {
+		ext = "draftplan"
+	}
 	if projName == "" {
-		return fmt.Sprintf("%s.tfplan", workspace)
+		return fmt.Sprintf("%s.%s", workspace, ext)
 	}
 	projName = strings.ReplaceAll(projName, "/", planfileSlashReplace)
-	return fmt.Sprintf("%s-%s.tfplan", projName, workspace)
+	return fmt.Sprintf("%s-%s.%s", projName, workspace, ext)
 }
 
 // isRemotePlan returns true if planContents are from a plan that was generated
