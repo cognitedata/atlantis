@@ -259,7 +259,6 @@ func newProjectCommandContext(ctx *command.Context,
 
 	var projectPlanStatus models.ProjectPlanStatus
 	var projectPolicyStatus []models.PolicySetStatus
-	projectIsDraftPlan := isDraftPlan
 
 	if ctx.PullStatus != nil {
 		for _, project := range ctx.PullStatus.Projects {
@@ -268,18 +267,12 @@ func newProjectCommandContext(ctx *command.Context,
 			if projCfg.Name == "" && project.RepoRelDir == projCfg.RepoRelDir {
 				projectPlanStatus = project.Status
 				projectPolicyStatus = project.PolicyStatus
-				if cmd == command.Apply {
-					projectIsDraftPlan = projectIsDraftPlan || project.IsDraftPlan
-				}
 				break
 			}
 
 			if projCfg.Name != "" && project.ProjectName == projCfg.Name {
 				projectPlanStatus = project.Status
 				projectPolicyStatus = project.PolicyStatus
-				if cmd == command.Apply {
-					projectIsDraftPlan = projectIsDraftPlan || project.IsDraftPlan
-				}
 				break
 			}
 		}
@@ -331,7 +324,7 @@ func newProjectCommandContext(ctx *command.Context,
 		AbortOnExecutionOrderFail:  abortOnExecutionOrderFail,
 		SilencePRComments:          projCfg.SilencePRComments,
 		TeamAllowlistChecker:       teamAllowlistChecker,
-		IsDraftPlan:                projectIsDraftPlan,
+		IsDraftPlan:                isDraftPlan,
 	}
 }
 

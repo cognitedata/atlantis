@@ -196,38 +196,4 @@ func TestPolicyCheckProjectCommandContextBuilder_BuildProjectContext(t *testing.
 		assert.Equal(t, command.DraftPlan, result[0].CommandName)
 	})
 
-	t.Run("persisted draftplan marker is propagated to apply context", func(t *testing.T) {
-		ctx := &command.Context{
-			Log: logging.NewNoopLogger(t),
-			PullStatus: &models.PullStatus{Projects: []models.ProjectStatus{
-				{
-					ProjectName: "project1",
-					RepoRelDir:  "dir1",
-					IsDraftPlan: true,
-				},
-			}},
-		}
-		result := subject.BuildProjectContext(ctx, command.Apply, "", projCfg, []string{}, "some/dir", false, false, false, false, false, terraformClient)
-
-		assert.Len(t, result, 1)
-		assert.True(t, result[0].IsDraftPlan)
-	})
-
-	t.Run("persisted draftplan marker does not affect a real plan", func(t *testing.T) {
-		ctx := &command.Context{
-			Log: logging.NewNoopLogger(t),
-			PullStatus: &models.PullStatus{Projects: []models.ProjectStatus{
-				{
-					ProjectName: "project1",
-					RepoRelDir:  "dir1",
-					IsDraftPlan: true,
-				},
-			}},
-		}
-		result := subject.BuildProjectContext(ctx, command.Plan, "", projCfg, []string{}, "some/dir", false, false, false, false, false, terraformClient)
-
-		assert.Len(t, result, 2)
-		assert.False(t, result[0].IsDraftPlan)
-		assert.False(t, result[1].IsDraftPlan)
-	})
 }

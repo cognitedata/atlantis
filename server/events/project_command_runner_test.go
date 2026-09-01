@@ -117,6 +117,80 @@ func TestDefaultProjectCommandRunner_Plan(t *testing.T) {
 	}
 }
 
+// Test that doPlan doesn't actually acquire the lock during draftplan.
+// The planfile-location half of "draftplan doesn't affect
+// the real plan process" is already covered with real filesystem checks by
+// TestRun_DraftPlan/TestRun_RemoteOps_DraftPlan in plan_step_runner_test.go;
+// this covers the lock half at the level a real caller invokes.
+func TestDefaultProjectCommandRunner_Plan_DraftPlanDoesNotTakeRealLock(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	cases := []struct {
+		description      string
+		commandName      command.Name
+		expectedRealLock bool
+	}{
+		{"real plan takes a real lock", command.Plan, true},
+		{"draftplan does not take a real lock", command.DraftPlan, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			mockPlan := mocks.NewMockStepRunner()
+			mockWorkingDir := mocks.NewMockWorkingDir()
+			mockLocker := mocks.NewMockProjectLocker()
+			mockCommandRequirementHandler := mocks.NewMockCommandRequirementHandler()
+
+			runner := events.DefaultProjectCommandRunner{
+				Locker:                    mockLocker,
+				LockURLGenerator:          mockURLGenerator{},
+				PlanStepRunner:            mockPlan,
+				WorkingDir:                mockWorkingDir,
+				WorkingDirLocker:          events.NewDefaultWorkingDirLocker(),
+				CommandRequirementHandler: mockCommandRequirementHandler,
+			}
+
+			repoDir := t.TempDir()
+			When(mockWorkingDir.Clone(Any[logging.SimpleLogging](), Any[models.Repo](), Any[models.PullRequest](),
+				Any[string]())).ThenReturn(repoDir, nil)
+			When(mockWorkingDir.GitReadLock(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(func() {})
+
+			When(mockLocker.TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				AnyBool(),
+			)).ThenReturn(&events.TryLockResponse{LockAcquired: true, LockKey: "lock-key"}, nil)
+
+			ctx := command.ProjectContext{
+				Log:           logging.NewNoopLogger(t),
+				CommandName:   c.commandName,
+				RepoLocksMode: valid.RepoLocksOnPlanMode,
+				Steps:         []valid.Step{{StepName: "plan"}},
+				Workspace:     "default",
+				RepoRelDir:    ".",
+			}
+
+			When(mockPlan.Run(ctx, nil, repoDir, map[string]string(nil))).ThenReturn("plan output", nil)
+
+			res := runner.Plan(ctx)
+			Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+			Assert(t, res.PlanSuccess != nil, "expecting plan success")
+
+			mockLocker.VerifyWasCalledOnce().TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				Eq(c.expectedRealLock),
+			)
+		})
+	}
+}
+
 func TestProjectOutputWrapper(t *testing.T) {
 	RegisterMockTestingT(t)
 	ctx := command.ProjectContext{

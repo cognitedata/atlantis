@@ -539,7 +539,7 @@ func TestRun_RemoteOps_DraftPlan(t *testing.T) {
 		"-refresh=false",
 		"-lock=false",
 		"-out",
-		fmt.Sprintf("%q", filepath.Join(absProjectPath, "default.tfplan")),
+		fmt.Sprintf("%q", filepath.Join(absProjectPath, "default.draftplan")),
 		"extra",
 		"args",
 		"comment",
@@ -569,8 +569,9 @@ func TestRun_RemoteOps_DraftPlan(t *testing.T) {
 	expRemotePlanArgs := []string{"plan", "-input=false", "-no-color", "-refresh=false", "-lock=false", "extra", "args", "comment", "args"}
 	Equals(t, expRemotePlanArgs, asyncTf.CalledArgs)
 
-	// Verify that the fake plan file still gets written for draftplan.
-	bytes, err := os.ReadFile(filepath.Join(absProjectPath, "default.tfplan"))
+	// Verify that the fake plan file still gets written for draftplan, at
+	// its own path distinct from a real plan's.
+	bytes, err := os.ReadFile(filepath.Join(absProjectPath, "default.draftplan"))
 	Ok(t, err)
 	Assert(t, strings.HasPrefix(string(bytes), "Atlantis: this plan was created by remote ops"), "expect remote plan")
 }
@@ -595,7 +596,7 @@ func TestRun_DraftPlan(t *testing.T) {
 		"-refresh=false",
 		"-lock=false",
 		"-out",
-		fmt.Sprintf("%q", filepath.Join(tmpDir, "workspace.tfplan")),
+		fmt.Sprintf("%q", filepath.Join(tmpDir, "workspace.draftplan")),
 		"extra",
 		"args",
 		"comment",

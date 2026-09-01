@@ -48,12 +48,6 @@ func (a *DefaultCommandRequirementHandler) ValidatePlanProject(repoDir string, c
 }
 
 func (a *DefaultCommandRequirementHandler) ValidateApplyProject(repoDir string, ctx command.ProjectContext) (failure string, err error) {
-	// Blocks apply for a project whose last plan was a draftplan preview.
-	// Checked before apply_requirements so it can't be bypassed by config.
-	if ctx.IsDraftPlan || ctx.ProjectPlanStatus == models.DraftPlannedPlanStatus || ctx.ProjectPlanStatus == models.DraftPlannedNoChangesPlanStatus {
-		return "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.", nil
-	}
-
 	return a.validateCommandRequirement(repoDir, ctx, command.Apply, ctx.ApplyRequirements)
 }
 

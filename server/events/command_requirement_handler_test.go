@@ -211,38 +211,6 @@ func TestAggregateApplyRequirements_ValidateApplyProject(t *testing.T) {
 			wantFailure: "Default branch must be rebased onto pull request before running apply.",
 			wantErr:     assert.NoError,
 		},
-		{
-			name: "fail by draft planned with changes, even with no apply requirements configured",
-			ctx: command.ProjectContext{
-				ProjectPlanStatus: models.DraftPlannedPlanStatus,
-			},
-			wantFailure: "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.",
-			wantErr:     assert.NoError,
-		},
-		{
-			name: "fail by draft planned with no changes",
-			ctx: command.ProjectContext{
-				ProjectPlanStatus: models.DraftPlannedNoChangesPlanStatus,
-			},
-			wantFailure: "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.",
-			wantErr:     assert.NoError,
-		},
-		{
-			name: "pass when a real plan followed the draft plan",
-			ctx: command.ProjectContext{
-				ProjectPlanStatus: models.PlannedPlanStatus,
-			},
-			wantErr: assert.NoError,
-		},
-		{
-			name: "fail when draft marker survives policy check",
-			ctx: command.ProjectContext{
-				IsDraftPlan:       true,
-				ProjectPlanStatus: models.PassedPolicyCheckStatus,
-			},
-			wantFailure: "This project's most recent plan was a draftplan preview, which is not locked and may not reflect the latest state. Run 'atlantis plan' to generate an applyable plan before running apply.",
-			wantErr:     assert.NoError,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -583,8 +583,6 @@ type ProjectStatus struct {
 	Workspace   string
 	RepoRelDir  string
 	ProjectName string
-	// IsDraftPlan is true when the latest plan for this project was a draftplan.
-	IsDraftPlan bool
 	// PolicySetApprovals tracks the approval status of every PolicySet for a Project.
 	PolicyStatus []PolicySetStatus
 	// Status is the status of where this project is at in the planning cycle.
