@@ -1016,13 +1016,10 @@ func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanSerializesAgainstItsel
 	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
 	Assert(t, res.PolicyCheckResults != nil, "expecting policy check results")
 
-	// WorkingDirLocker (the lock doPlan uses) should never have been touched by the
-	// draftplan policy check, so a subsequent draftplan's own plan step is never blocked by it.
+	// Ensure that draftplans are not blocked by draftplan policy checks.
 	_, err := workingDirLocker.TryLock("owner/repo", 1, "default", ".", "", command.Plan)
 	Ok(t, err)
 
-	// Now simulate a draftplan policy check already in flight for this workspace, and
-	// confirm a second one skips immediately rather than running (or queueing) alongside it.
 	unlockFn, err := draftPlanPolicyCheckLocker.TryLock("owner/repo", 1, "default", ".", "", command.PolicyCheck)
 	Ok(t, err)
 	defer unlockFn()

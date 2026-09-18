@@ -438,8 +438,8 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 		// Skip acquiring WorkingDirLocker on draftplan policy checks to avoid slowing down users who
 		// need quick feedback on quick iterative changes.
 		//
-		// Acquire DraftPlanPolicyCheckLocker to ensure that at most one draftplan olicy check runs per workspace at a time.
-		// If one is already running, we skip rather than queue, so a burst of quick draftplans doesn't cause a pile of policy checks to accumulate.
+		// Acquire DraftPlanPolicyCheckLocker to ensure that at most one draftplan policy check runs per workspace at a time.
+		// If one is already running, skip the check instead of queuing it so that policy checks don't accumulate.
 		unlockFn, err := p.DraftPlanPolicyCheckLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
 		if err != nil {
 			return nil, "Skipping draft plan policy check: another draft plan policy check is already running for this workspace. Run `atlantis draftplan` again once it finishes to re-check policies.", nil
