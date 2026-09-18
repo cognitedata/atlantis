@@ -67,6 +67,7 @@ type commonData struct {
 	HideUnchangedPlanComments bool
 	QuietPolicyChecks         bool
 	VcsRequestType            string
+	IsDraftPolicyCheck        bool
 }
 
 // errData is data about an error response.
@@ -206,6 +207,16 @@ func (m *MarkdownRenderer) Render(ctx *command.Context, res command.Result, cmd 
 
 func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []command.ProjectResult, common commonData) string {
 	vcsHost := ctx.Pull.BaseRepo.VCSHost.Type
+
+	// Check if policy check is being run for a draftplan
+	if common.Command == policyCheckCommandTitle {
+		for _, result := range results {
+			if result.PolicyCheckResults != nil {
+				common.IsDraftPolicyCheck = result.PolicyCheckResults.IsDraftPlan
+				break
+			}
+		}
+	}
 
 	var resultsTmplData []projectResultTmplData
 	numPlanSuccesses := 0

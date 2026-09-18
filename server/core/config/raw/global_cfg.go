@@ -41,6 +41,7 @@ type Repo struct {
 	RepoLocking               *bool          `yaml:"repo_locking,omitempty" json:"repo_locking,omitempty"`
 	RepoLocks                 *RepoLocks     `yaml:"repo_locks,omitempty" json:"repo_locks,omitempty"`
 	PolicyCheck               *bool          `yaml:"policy_check,omitempty" json:"policy_check,omitempty"`
+	DraftPlanPolicyCheck      *bool          `yaml:"draft_plan_policy_check,omitempty" json:"draft_plan_policy_check,omitempty"`
 	CustomPolicyCheck         *bool          `yaml:"custom_policy_check,omitempty" json:"custom_policy_check,omitempty"`
 	AutoDiscover              *AutoDiscover  `yaml:"autodiscover,omitempty" json:"autodiscover,omitempty"`
 	SilencePRComments         []string       `yaml:"silence_pr_comments,omitempty" json:"silence_pr_comments,omitempty"`
@@ -226,8 +227,8 @@ func (r Repo) Validate() error {
 	overridesValid := func(value any) error {
 		overrides := value.([]string)
 		for _, o := range overrides {
-			if o != valid.PlanRequirementsKey && o != valid.ApplyRequirementsKey && o != valid.ImportRequirementsKey && o != valid.WorkflowKey && o != valid.DeleteSourceBranchOnMergeKey && o != valid.RepoLockingKey && o != valid.RepoLocksKey && o != valid.PolicyCheckKey && o != valid.CustomPolicyCheckKey && o != valid.SilencePRCommentsKey {
-				return fmt.Errorf("%q is not a valid override, only %q, %q, %q, %q, %q, %q, %q, %q, %q, and %q are supported", o, valid.PlanRequirementsKey, valid.ApplyRequirementsKey, valid.ImportRequirementsKey, valid.WorkflowKey, valid.DeleteSourceBranchOnMergeKey, valid.RepoLockingKey, valid.RepoLocksKey, valid.PolicyCheckKey, valid.CustomPolicyCheckKey, valid.SilencePRCommentsKey)
+			if o != valid.PlanRequirementsKey && o != valid.ApplyRequirementsKey && o != valid.ImportRequirementsKey && o != valid.WorkflowKey && o != valid.DeleteSourceBranchOnMergeKey && o != valid.RepoLockingKey && o != valid.RepoLocksKey && o != valid.PolicyCheckKey && o != valid.DraftPlanPolicyCheckKey && o != valid.CustomPolicyCheckKey && o != valid.SilencePRCommentsKey {
+				return fmt.Errorf("%q is not a valid override, only %q, %q, %q, %q, %q, %q, %q, %q, %q, %q, and %q are supported", o, valid.PlanRequirementsKey, valid.ApplyRequirementsKey, valid.ImportRequirementsKey, valid.WorkflowKey, valid.DeleteSourceBranchOnMergeKey, valid.RepoLockingKey, valid.RepoLocksKey, valid.PolicyCheckKey, valid.DraftPlanPolicyCheckKey, valid.CustomPolicyCheckKey, valid.SilencePRCommentsKey)
 			}
 		}
 		return nil
@@ -394,6 +395,7 @@ OuterGlobalImportReqs:
 		RepoLocking:               r.RepoLocking,
 		RepoLocks:                 repoLocks,
 		PolicyCheck:               r.PolicyCheck,
+		DraftPlanPolicyCheck:      r.DraftPlanPolicyCheck,
 		CustomPolicyCheck:         r.CustomPolicyCheck,
 		AutoDiscover:              autoDiscover,
 		SilencePRComments:         r.SilencePRComments,

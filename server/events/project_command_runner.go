@@ -214,28 +214,29 @@ func (p *ProjectOutputWrapper) updateProjectPRStatus(commandName command.Name, c
 
 // DefaultProjectCommandRunner implements ProjectCommandRunner.
 type DefaultProjectCommandRunner struct {
-	VcsClient                 vcs.Client
-	Locker                    ProjectLocker
-	LockURLGenerator          LockURLGenerator
-	Logger                    logging.SimpleLogging
-	InitStepRunner            StepRunner
-	PlanStepRunner            StepRunner
-	ShowStepRunner            StepRunner
-	ApplyStepRunner           StepRunner
-	CancelStepRunner          StepRunner
-	PolicyCheckStepRunner     StepRunner
-	VersionStepRunner         StepRunner
-	ImportStepRunner          StepRunner
-	StateRmStepRunner         StepRunner
-	RunStepRunner             CustomStepRunner
-	EnvStepRunner             EnvStepRunner
-	MultiEnvStepRunner        MultiEnvStepRunner
-	PullApprovedChecker       runtime.PullApprovedChecker
-	WorkingDir                WorkingDir
-	Webhooks                  WebhooksSender
-	WorkingDirLocker          WorkingDirLocker
-	CommandRequirementHandler CommandRequirementHandler
-	CancellationTracker       CancellationTracker
+	VcsClient                  vcs.Client
+	Locker                     ProjectLocker
+	LockURLGenerator           LockURLGenerator
+	Logger                     logging.SimpleLogging
+	InitStepRunner             StepRunner
+	PlanStepRunner             StepRunner
+	ShowStepRunner             StepRunner
+	ApplyStepRunner            StepRunner
+	CancelStepRunner           StepRunner
+	PolicyCheckStepRunner      StepRunner
+	VersionStepRunner          StepRunner
+	ImportStepRunner           StepRunner
+	StateRmStepRunner          StepRunner
+	RunStepRunner              CustomStepRunner
+	EnvStepRunner              EnvStepRunner
+	MultiEnvStepRunner         MultiEnvStepRunner
+	PullApprovedChecker        runtime.PullApprovedChecker
+	WorkingDir                 WorkingDir
+	Webhooks                   WebhooksSender
+	WorkingDirLocker           WorkingDirLocker
+	DraftPlanPolicyCheckLocker WorkingDirLocker
+	CommandRequirementHandler  CommandRequirementHandler
+	CancellationTracker        CancellationTracker
 }
 
 // Plan runs terraform plan for the project described by ctx.
@@ -409,24 +410,48 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 	// we will attempt to capture the lock here but fail to get the working directory
 	// at which point we will unlock again to preserve functionality
 	// If we fail to capture the lock here (super unlikely) then we error out and the user is forced to replan
-	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), ctx.RepoLocksMode == valid.RepoLocksOnPlanMode)
+	// Skip the check to re-acquire a lock when running a draftplan.
+
+	useLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && !ctx.IsDraftPlan
+	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useLock)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
 	}
 	if !lockAttempt.LockAcquired {
+		// Only false if we attempt to acquire the lock and we fail.
+		// So, for draftplans, when we skip lock acquisition, this will still be true.
 		return nil, lockAttempt.LockFailureReason, nil
 	}
-	ctx.Log.Debug("acquired lock for project.")
+	if useLock {
+		ctx.Log.Debug("acquired lock for project.")
+	} else {
+		ctx.Log.Debug("draftplan: skipped acquiring a real lock for project.")
+	}
 
 	// Acquire internal lock for the directory we're going to operate in.
 	// We should refactor this to keep the lock for the duration of plan and policy check since as of now
 	// there is a small gap where we don't have the lock and if we can't get this here, we should just unlock the PR.
-	unlockFn, err := p.WorkingDirLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
-	if err != nil {
-		return nil, "", err
+
+	if ctx.IsDraftPlan {
+		// Policy checks can take a long time on large projects.
+		// Skip acquiring WorkingDirLocker on draftplan policy checks to avoid slowing down users who
+		// need quick feedback on quick iterative changes.
+		//
+		// Acquire DraftPlanPolicyCheckLocker to ensure that at most one draftplan policy check runs per workspace at a time.
+		// If one is already running, skip the check instead of queuing it so that policy checks don't accumulate.
+		unlockFn, err := p.DraftPlanPolicyCheckLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
+		if err != nil {
+			return nil, "Skipping draft plan policy check: another draft plan policy check is already running for this workspace. Run `atlantis draftplan` again once it finishes to re-check policies.", nil
+		}
+		defer unlockFn()
+	} else {
+		unlockFn, err := p.WorkingDirLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
+		if err != nil {
+			return nil, "", err
+		}
+		defer unlockFn()
 	}
-	defer unlockFn()
 
 	// we shouldn't attempt to clone this again. If changes occur to the pull request while the plan is happening
 	// that shouldn't affect this particular operation.
@@ -566,6 +591,7 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 		RePlanCmd:          ctx.RePlanCmd,
 		ApplyCmd:           ctx.ApplyCmd,
 		ApprovePoliciesCmd: ctx.ApprovePoliciesCmd,
+		IsDraftPlan:        ctx.IsDraftPlan,
 	}
 
 	// Using this function instead of catching failed policy runs with errors, for cases when '--no-fail' is passed to conftest.
@@ -584,15 +610,20 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 
 func (p *DefaultProjectCommandRunner) doPlan(ctx command.ProjectContext) (*models.PlanSuccess, string, error) {
 	// Acquire Atlantis lock for this repo/dir/workspace.
-	useRealLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && ctx.CommandName != command.DraftPlan
-	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useRealLock)
+	// Draftplan acquires a real lock; it instead uses a no-op locker that always trivially succeeds.
+	useLock := ctx.RepoLocksMode == valid.RepoLocksOnPlanMode && ctx.CommandName != command.DraftPlan
+	lockAttempt, err := p.Locker.TryLock(ctx.Log, ctx.Pull, ctx.User, ctx.Workspace, models.NewProject(ctx.Pull.BaseRepo.FullName, ctx.RepoRelDir, ctx.ProjectName), useLock)
 	if err != nil {
 		return nil, "", fmt.Errorf("acquiring lock: %w", err)
 	}
 	if !lockAttempt.LockAcquired {
 		return nil, lockAttempt.LockFailureReason, nil
 	}
-	ctx.Log.Debug("acquired lock for project")
+	if useLock {
+		ctx.Log.Debug("acquired lock for project")
+	} else {
+		ctx.Log.Debug("draftplan: skipped acquiring a real lock for project")
+	}
 
 	// Acquire internal lock for the directory we're going to operate in.
 	unlockFn, err := p.WorkingDirLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.Plan)

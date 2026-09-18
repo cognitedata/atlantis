@@ -12,6 +12,14 @@
 ```
 {{ end -}}
 {{- end }}
+{{- if .IsDraftPlan }}
+{{- if not .PolicyCleared }}
+#### Policy Approval Status:
+```
+{{ .PolicyApprovalSummary }}
+```
+{{- end }}
+{{- else }}
 {{- if .PolicyCleared }}
 * :arrow_forward: To **apply** this plan, comment:
   ```shell
@@ -32,4 +40,5 @@
   ```shell
   {{ .RePlanCmd }}
   ```
+{{- end }}
 {{ end -}}

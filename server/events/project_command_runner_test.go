@@ -117,6 +117,76 @@ func TestDefaultProjectCommandRunner_Plan(t *testing.T) {
 	}
 }
 
+// Test that doPlan doesn't actually acquire the lock during draftplan.
+func TestDefaultProjectCommandRunner_Plan_DraftPlanDoesNotTakeRealLock(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	cases := []struct {
+		description      string
+		commandName      command.Name
+		expectedRealLock bool
+	}{
+		{"real plan takes a real lock", command.Plan, true},
+		{"draftplan does not take a real lock", command.DraftPlan, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			mockPlan := mocks.NewMockStepRunner()
+			mockWorkingDir := mocks.NewMockWorkingDir()
+			mockLocker := mocks.NewMockProjectLocker()
+			mockCommandRequirementHandler := mocks.NewMockCommandRequirementHandler()
+
+			runner := events.DefaultProjectCommandRunner{
+				Locker:                    mockLocker,
+				LockURLGenerator:          mockURLGenerator{},
+				PlanStepRunner:            mockPlan,
+				WorkingDir:                mockWorkingDir,
+				WorkingDirLocker:          events.NewDefaultWorkingDirLocker(),
+				CommandRequirementHandler: mockCommandRequirementHandler,
+			}
+
+			repoDir := t.TempDir()
+			When(mockWorkingDir.Clone(Any[logging.SimpleLogging](), Any[models.Repo](), Any[models.PullRequest](),
+				Any[string]())).ThenReturn(repoDir, nil)
+			When(mockWorkingDir.GitReadLock(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(func() {})
+
+			When(mockLocker.TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				AnyBool(),
+			)).ThenReturn(&events.TryLockResponse{LockAcquired: true, LockKey: "lock-key"}, nil)
+
+			ctx := command.ProjectContext{
+				Log:           logging.NewNoopLogger(t),
+				CommandName:   c.commandName,
+				RepoLocksMode: valid.RepoLocksOnPlanMode,
+				Steps:         []valid.Step{{StepName: "plan"}},
+				Workspace:     "default",
+				RepoRelDir:    ".",
+			}
+
+			When(mockPlan.Run(ctx, nil, repoDir, map[string]string(nil))).ThenReturn("plan output", nil)
+
+			res := runner.Plan(ctx)
+			Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+			Assert(t, res.PlanSuccess != nil, "expecting plan success")
+
+			mockLocker.VerifyWasCalledOnce().TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				Eq(c.expectedRealLock),
+			)
+		})
+	}
+}
+
 func TestProjectOutputWrapper(t *testing.T) {
 	RegisterMockTestingT(t)
 	ctx := command.ProjectContext{
@@ -745,6 +815,231 @@ func (m mockURLGenerator) GenerateLockURL(lockID string) string {
 	return "https://" + lockID
 }
 
+// The policy_check step normally tries to re-acquire the lock to avoid some edge cases.
+// Ensure that it skips this step if it is being run as part of a draftplan.
+func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotTakeRealLock(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	cases := []struct {
+		description      string
+		isDraftPlan      bool
+		expectedRealLock bool
+	}{
+		{"real plan's policy check takes a real lock", false, true},
+		{"draftplan's policy check does not take a real lock", true, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			mockPolicyCheck := mocks.NewMockStepRunner()
+			mockWorkingDir := mocks.NewMockWorkingDir()
+			mockLocker := mocks.NewMockProjectLocker()
+
+			runner := events.DefaultProjectCommandRunner{
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
+			}
+
+			repoDir := t.TempDir()
+			When(mockWorkingDir.GetWorkingDir(
+				Any[models.Repo](),
+				Any[models.PullRequest](),
+				Any[string](),
+			)).ThenReturn(repoDir, nil)
+			When(mockWorkingDir.GitReadLock(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(func() {})
+
+			When(mockLocker.TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				AnyBool(),
+			)).ThenReturn(&events.TryLockResponse{
+				LockAcquired: true,
+				LockKey:      "lock-key",
+			}, nil)
+
+			When(mockPolicyCheck.Run(
+				Any[command.ProjectContext](),
+				Any[[]string](),
+				Any[string](),
+				Any[map[string]string](),
+			)).ThenReturn("Policy check passed", nil)
+
+			ctx := command.ProjectContext{
+				Log:               logging.NewNoopLogger(t),
+				Workspace:         "default",
+				RepoRelDir:        ".",
+				IsDraftPlan:       c.isDraftPlan,
+				RepoLocksMode:     valid.RepoLocksOnPlanMode,
+				CustomPolicyCheck: true,
+				Steps:             []valid.Step{{StepName: "policy_check"}},
+			}
+
+			res := runner.PolicyCheck(ctx)
+			Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+
+			mockLocker.VerifyWasCalledOnce().TryLock(
+				Any[logging.SimpleLogging](),
+				Any[models.PullRequest](),
+				Any[models.User](),
+				Any[string](),
+				Any[models.Project](),
+				Eq(c.expectedRealLock),
+			)
+		})
+	}
+}
+
+// Test that when TryLock fails to acquire the lock (e.g. another pull
+// request already holds it), doPolicyCheck returns the failure reason
+// immediately and never proceeds to clone/run policy check steps.
+func TestDefaultProjectCommandRunner_PolicyCheck_LockAcquisitionFails(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	mockPolicyCheck := mocks.NewMockStepRunner()
+	mockWorkingDir := mocks.NewMockWorkingDir()
+	mockLocker := mocks.NewMockProjectLocker()
+
+	runner := events.DefaultProjectCommandRunner{
+		Locker:                mockLocker,
+		LockURLGenerator:      mockURLGenerator{},
+		PolicyCheckStepRunner: mockPolicyCheck,
+		WorkingDir:            mockWorkingDir,
+		WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+	}
+
+	When(mockLocker.TryLock(
+		Any[logging.SimpleLogging](),
+		Any[models.PullRequest](),
+		Any[models.User](),
+		Any[string](),
+		Any[models.Project](),
+		AnyBool(),
+	)).ThenReturn(&events.TryLockResponse{
+		LockAcquired:      false,
+		LockFailureReason: "locked by another pull",
+	}, nil)
+
+	ctx := command.ProjectContext{
+		Log:               logging.NewNoopLogger(t),
+		Workspace:         "default",
+		RepoRelDir:        ".",
+		RepoLocksMode:     valid.RepoLocksOnPlanMode,
+		CustomPolicyCheck: true,
+		Steps:             []valid.Step{{StepName: "policy_check"}},
+	}
+
+	res := runner.PolicyCheck(ctx)
+
+	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+	Assert(t, res.PolicyCheckResults == nil, "not expecting policy check results")
+	Equals(t, "locked by another pull", res.Failure)
+
+	mockPolicyCheck.VerifyWasCalled(Never()).Run(
+		Any[command.ProjectContext](),
+		Any[[]string](),
+		Any[string](),
+		Any[map[string]string](),
+	)
+	mockWorkingDir.VerifyWasCalled(Never()).GetWorkingDir(
+		Any[models.Repo](),
+		Any[models.PullRequest](),
+		Any[string](),
+	)
+}
+
+// Test that a draftplan's policy check does not hold WorkingDirLocker
+// and draftplan policy checks are skipped if one is already running.
+func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanSerializesAgainstItself(t *testing.T) {
+	RegisterMockTestingT(t)
+
+	mockPolicyCheck := mocks.NewMockStepRunner()
+	mockWorkingDir := mocks.NewMockWorkingDir()
+	mockLocker := mocks.NewMockProjectLocker()
+	workingDirLocker := events.NewDefaultWorkingDirLocker()
+	draftPlanPolicyCheckLocker := events.NewDefaultWorkingDirLocker()
+
+	runner := events.DefaultProjectCommandRunner{
+		Locker:                     mockLocker,
+		LockURLGenerator:           mockURLGenerator{},
+		PolicyCheckStepRunner:      mockPolicyCheck,
+		WorkingDir:                 mockWorkingDir,
+		WorkingDirLocker:           workingDirLocker,
+		DraftPlanPolicyCheckLocker: draftPlanPolicyCheckLocker,
+	}
+
+	repoDir := t.TempDir()
+	When(mockWorkingDir.GetWorkingDir(
+		Any[models.Repo](),
+		Any[models.PullRequest](),
+		Any[string](),
+	)).ThenReturn(repoDir, nil)
+	When(mockWorkingDir.GitReadLock(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(func() {})
+
+	When(mockLocker.TryLock(
+		Any[logging.SimpleLogging](),
+		Any[models.PullRequest](),
+		Any[models.User](),
+		Any[string](),
+		Any[models.Project](),
+		AnyBool(),
+	)).ThenReturn(&events.TryLockResponse{
+		LockAcquired: true,
+		LockKey:      "lock-key",
+	}, nil)
+
+	When(mockPolicyCheck.Run(
+		Any[command.ProjectContext](),
+		Any[[]string](),
+		Any[string](),
+		Any[map[string]string](),
+	)).ThenReturn("Policy check passed", nil)
+
+	ctx := command.ProjectContext{
+		Log:               logging.NewNoopLogger(t),
+		Pull:              models.PullRequest{Num: 1, BaseRepo: models.Repo{FullName: "owner/repo"}},
+		Workspace:         "default",
+		RepoRelDir:        ".",
+		IsDraftPlan:       true,
+		RepoLocksMode:     valid.RepoLocksOnPlanMode,
+		CustomPolicyCheck: true,
+		Steps:             []valid.Step{{StepName: "policy_check"}},
+	}
+
+	res := runner.PolicyCheck(ctx)
+	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+	Assert(t, res.PolicyCheckResults != nil, "expecting policy check results")
+
+	// Ensure that draftplans are not blocked by draftplan policy checks.
+	_, err := workingDirLocker.TryLock("owner/repo", 1, "default", ".", "", command.Plan)
+	Ok(t, err)
+
+	unlockFn, err := draftPlanPolicyCheckLocker.TryLock("owner/repo", 1, "default", ".", "", command.PolicyCheck)
+	Ok(t, err)
+	defer unlockFn()
+
+	mockPolicyCheck2 := mocks.NewMockStepRunner()
+	runner.PolicyCheckStepRunner = mockPolicyCheck2
+
+	res = runner.PolicyCheck(ctx)
+	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
+	Assert(t, res.PolicyCheckResults == nil, "not expecting policy check results when skipped")
+	Assert(t, res.Failure != "", "expecting a failure message explaining the skip")
+
+	mockPolicyCheck2.VerifyWasCalled(Never()).Run(
+		Any[command.ProjectContext](),
+		Any[[]string](),
+		Any[string](),
+		Any[map[string]string](),
+	)
+}
+
 // Test that custom policy checks use configured policy set names instead of defaulting to "Custom".
 // This is a regression test for https://github.com/runatlantis/atlantis/pull/5331
 // where custom policy sets defaulting to "Custom" allowed any user to approve policies.
@@ -877,11 +1172,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheckNames(t *testing.T) {
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1006,11 +1302,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheck_EmptyOutputsArray(t *test
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1171,11 +1468,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheckFailureDetection(t *testin
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1304,11 +1602,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheck_NoPreOrPostConftestOutput
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()

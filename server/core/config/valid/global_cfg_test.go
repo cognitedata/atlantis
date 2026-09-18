@@ -133,7 +133,7 @@ func TestNewGlobalCfg(t *testing.T) {
 
 			if c.allowAllRepoSettings {
 				exp.Repos[0].AllowCustomWorkflows = Bool(true)
-				exp.Repos[0].AllowedOverrides = []string{"plan_requirements", "apply_requirements", "import_requirements", "workflow", "delete_source_branch_on_merge", "repo_locking", "repo_locks", "policy_check", "silence_pr_comments"}
+				exp.Repos[0].AllowedOverrides = []string{"plan_requirements", "apply_requirements", "import_requirements", "workflow", "delete_source_branch_on_merge", "repo_locking", "repo_locks", "policy_check", "draft_plan_policy_check", "silence_pr_comments"}
 			}
 			if c.policyCheckEnabled {
 				exp.Repos[0].ApplyRequirements = append(exp.Repos[0].ApplyRequirements, "policies_passed")
@@ -645,6 +645,7 @@ policies:
 				global = valid.NewGlobalCfgFromArgs(globalCfgArgs)
 			}
 
+			c.exp.DraftPlanPolicyCheck = false
 			Equals(t,
 				c.exp,
 				global.MergeProjectCfg(logging.NewNoopLogger(t), c.repoID, c.proj, valid.RepoCfg{}))
@@ -1078,6 +1079,7 @@ repos:
 			}
 
 			global.PolicySets = emptyPolicySets
+			c.exp.DraftPlanPolicyCheck = false
 			Equals(t, c.exp, global.MergeProjectCfg(logging.NewNoopLogger(t), c.repoID, c.proj, valid.RepoCfg{Workflows: c.repoWorkflows}))
 		})
 	}
@@ -1476,6 +1478,7 @@ repos:
 			Ok(t, err)
 
 			global.PolicySets = emptyPolicySets
+			c.exp.DraftPlanPolicyCheck = false
 			Equals(t, c.exp, global.MergeProjectCfg(logging.NewNoopLogger(t), c.repoID, c.proj, valid.RepoCfg{Workflows: c.repoWorkflows}))
 		})
 	}

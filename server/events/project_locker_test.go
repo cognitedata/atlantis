@@ -200,6 +200,8 @@ func TestDefaultProjectLocker_RepoLocking(t *testing.T) {
 					},
 					nil,
 				)
+				// UnlockFn should release through Locker (repo locking is enabled).
+				locker.EXPECT().Unlock(lockKey).Return(nil, nil)
 				// noOpLocker has no EXPECT — gomock will fail if it's called
 			},
 		},
@@ -215,6 +217,11 @@ func TestDefaultProjectLocker_RepoLocking(t *testing.T) {
 					},
 					nil,
 				)
+				// UnlockFn should release through NoOpLocker, not Locker.
+				// Lock keys don't include the pull number, so releasing
+				// through Locker here could delete an unrelated lock on
+				// the same project/workspace held by another pull.
+				noOpLocker.EXPECT().Unlock(lockKey).Return(nil, nil)
 				// locker has no EXPECT — gomock will fail if it's called
 			},
 		},
@@ -234,6 +241,9 @@ func TestDefaultProjectLocker_RepoLocking(t *testing.T) {
 			res, err := locker.TryLock(logging.NewNoopLogger(t), expPull, expUser, expWorkspace, expProject, tt.repoLocking)
 			Ok(t, err)
 			Equals(t, true, res.LockAcquired)
+
+			unlockErr := res.UnlockFn()
+			Ok(t, unlockErr)
 		})
 	}
 }

@@ -15,31 +15,37 @@ func TestGetPlanFilename(t *testing.T) {
 	cases := []struct {
 		workspace   string
 		projectName string
+		isDraft     bool
 		exp         string
 	}{
 		{
 			"workspace",
 			"",
+			false,
 			"workspace.tfplan",
 		},
 		{
 			"workspace",
 			"project",
+			false,
 			"project-workspace.tfplan",
 		},
 		{
 			"workspace",
 			"project/with/slash",
+			false,
 			"project::with::slash-workspace.tfplan",
 		},
 		{
 			"workspace",
 			"project with space",
+			false,
 			"project with space-workspace.tfplan",
 		},
 		{
 			"workspace😀",
 			"project😀",
+			false,
 			"project😀-workspace😀.tfplan",
 		},
 		// Previously we replaced invalid chars with -'s, however we now
@@ -49,13 +55,28 @@ func TestGetPlanFilename(t *testing.T) {
 		{
 			"default",
 			`all.invalid.chars \/"*?<>`,
+			false,
 			"all.invalid.chars \\::\"*?<>-default.tfplan",
+		},
+		// isDraft uses a different extension so a draftplan's file is never
+		// mistaken for (or resolved by callers looking for) a real plan's.
+		{
+			"workspace",
+			"",
+			true,
+			"workspace.draftplan",
+		},
+		{
+			"workspace",
+			"project",
+			true,
+			"project-workspace.draftplan",
 		},
 	}
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			Equals(t, c.exp, runtime.GetPlanFilename(c.workspace, c.projectName))
+			Equals(t, c.exp, runtime.GetPlanFilename(c.workspace, c.projectName, c.isDraft))
 		})
 	}
 }
