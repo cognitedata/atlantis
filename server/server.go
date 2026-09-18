@@ -511,6 +511,7 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 
 	applyLockingClient = locking.NewApplyClient(database, disableApply, disableGlobalApplyLock)
 	workingDirLocker := events.NewDefaultWorkingDirLocker()
+	draftPlanPolicyCheckLocker := events.NewDefaultWorkingDirLocker()
 
 	var workingDir events.WorkingDir = &events.FileWorkspace{
 		DataDir:          userConfig.DataDir,
@@ -731,13 +732,14 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 			DefaultTFDistribution: defaultTfDistribution,
 			DefaultTFVersion:      defaultTfVersion,
 		},
-		ImportStepRunner:          runtime.NewImportStepRunner(terraformClient, defaultTfDistribution, defaultTfVersion),
-		StateRmStepRunner:         runtime.NewStateRmStepRunner(terraformClient, defaultTfDistribution, defaultTfVersion),
-		WorkingDir:                workingDir,
-		Webhooks:                  webhooksManager,
-		WorkingDirLocker:          workingDirLocker,
-		CommandRequirementHandler: applyRequirementHandler,
-		CancellationTracker:       cancellationTracker,
+		ImportStepRunner:           runtime.NewImportStepRunner(terraformClient, defaultTfDistribution, defaultTfVersion),
+		StateRmStepRunner:          runtime.NewStateRmStepRunner(terraformClient, defaultTfDistribution, defaultTfVersion),
+		WorkingDir:                 workingDir,
+		Webhooks:                   webhooksManager,
+		WorkingDirLocker:           workingDirLocker,
+		DraftPlanPolicyCheckLocker: draftPlanPolicyCheckLocker,
+		CommandRequirementHandler:  applyRequirementHandler,
+		CancellationTracker:        cancellationTracker,
 	}
 
 	dbUpdater := &events.DBUpdater{

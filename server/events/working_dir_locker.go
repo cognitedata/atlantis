@@ -27,9 +27,6 @@ type WorkingDirLocker interface {
 	TryLock(repoFullName string, pullNum int, workspace string, path string, projectName string, cmdName command.Name) (func(), error)
 	// UnlockByPull unlocks all workspaces for a specific pull request
 	UnlockByPull(repoFullName string, pullNum int)
-	// CurrentLockHolder returns the command currently holding the lock
-	// without acquiring it.
-	CurrentLockHolder(repoFullName string, pullNum int, workspace string, path string, projectName string) (command.Name, bool)
 }
 
 // DefaultWorkingDirLocker implements WorkingDirLocker.
@@ -73,17 +70,6 @@ func (d *DefaultWorkingDirLocker) UnlockByPull(repoFullName string, pullNum int)
 			delete(d.locks, key)
 		}
 	}
-}
-
-// CurrentLockHolder returns the command currently holding the lock
-// without acquiring it.
-func (d *DefaultWorkingDirLocker) CurrentLockHolder(repoFullName string, pullNum int, workspace string, path string, projectName string) (command.Name, bool) {
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
-
-	workspaceKey := d.workspaceKey(repoFullName, pullNum, workspace, path, projectName)
-	cmdName, exists := d.locks[workspaceKey]
-	return cmdName, exists
 }
 
 // Unlock unlocks the workspace for this pull.

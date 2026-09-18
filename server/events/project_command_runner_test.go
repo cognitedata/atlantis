@@ -836,11 +836,12 @@ func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotTakeRealLock(t 
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -953,23 +954,24 @@ func TestDefaultProjectCommandRunner_PolicyCheck_LockAcquisitionFails(t *testing
 	)
 }
 
-// Test that a draftplan's policy check does not itself hold the within-PR working dir
-// lock, and that it skips running entirely (rather than blocking) if something else
-// (e.g. a newer draftplan) currently holds that lock.
-func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotHoldWorkingDirLock(t *testing.T) {
+// Test that a draftplan's policy check does not hold WorkingDirLocker
+// and draftplan policy checks are skipped if one is already running.
+func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanSerializesAgainstItself(t *testing.T) {
 	RegisterMockTestingT(t)
 
 	mockPolicyCheck := mocks.NewMockStepRunner()
 	mockWorkingDir := mocks.NewMockWorkingDir()
 	mockLocker := mocks.NewMockProjectLocker()
 	workingDirLocker := events.NewDefaultWorkingDirLocker()
+	draftPlanPolicyCheckLocker := events.NewDefaultWorkingDirLocker()
 
 	runner := events.DefaultProjectCommandRunner{
-		Locker:                mockLocker,
-		LockURLGenerator:      mockURLGenerator{},
-		PolicyCheckStepRunner: mockPolicyCheck,
-		WorkingDir:            mockWorkingDir,
-		WorkingDirLocker:      workingDirLocker,
+		Locker:                     mockLocker,
+		LockURLGenerator:           mockURLGenerator{},
+		PolicyCheckStepRunner:      mockPolicyCheck,
+		WorkingDir:                 mockWorkingDir,
+		WorkingDirLocker:           workingDirLocker,
+		DraftPlanPolicyCheckLocker: draftPlanPolicyCheckLocker,
 	}
 
 	repoDir := t.TempDir()
@@ -1014,14 +1016,14 @@ func TestDefaultProjectCommandRunner_PolicyCheck_DraftPlanDoesNotHoldWorkingDirL
 	Assert(t, res.Error == nil, "not expecting error: %v", res.Error)
 	Assert(t, res.PolicyCheckResults != nil, "expecting policy check results")
 
-	// The working dir lock should not be held once the policy check has finished, since a
-	// draftplan's policy check never took it in the first place.
-	_, locked := workingDirLocker.CurrentLockHolder("owner/repo", 1, "default", ".", "")
-	Assert(t, !locked, "working dir lock should not be held by draftplan policy check")
+	// WorkingDirLocker (the lock doPlan uses) should never have been touched by the
+	// draftplan policy check, so a subsequent draftplan's own plan step is never blocked by it.
+	_, err := workingDirLocker.TryLock("owner/repo", 1, "default", ".", "", command.Plan)
+	Ok(t, err)
 
-	// Now simulate a newer draftplan holding the working dir lock (e.g. because it's
-	// actively running a plan) and confirm the policy check skips rather than running.
-	unlockFn, err := workingDirLocker.TryLock("owner/repo", 1, "default", ".", "", command.DraftPlan)
+	// Now simulate a draftplan policy check already in flight for this workspace, and
+	// confirm a second one skips immediately rather than running (or queueing) alongside it.
+	unlockFn, err := draftPlanPolicyCheckLocker.TryLock("owner/repo", 1, "default", ".", "", command.PolicyCheck)
 	Ok(t, err)
 	defer unlockFn()
 
@@ -1173,11 +1175,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheckNames(t *testing.T) {
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1302,11 +1305,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheck_EmptyOutputsArray(t *test
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1467,11 +1471,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheckFailureDetection(t *testin
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()
@@ -1600,11 +1605,12 @@ func TestDefaultProjectCommandRunner_CustomPolicyCheck_NoPreOrPostConftestOutput
 			mockLocker := mocks.NewMockProjectLocker()
 
 			runner := events.DefaultProjectCommandRunner{
-				Locker:                mockLocker,
-				LockURLGenerator:      mockURLGenerator{},
-				PolicyCheckStepRunner: mockPolicyCheck,
-				WorkingDir:            mockWorkingDir,
-				WorkingDirLocker:      events.NewDefaultWorkingDirLocker(),
+				Locker:                     mockLocker,
+				LockURLGenerator:           mockURLGenerator{},
+				PolicyCheckStepRunner:      mockPolicyCheck,
+				WorkingDir:                 mockWorkingDir,
+				WorkingDirLocker:           events.NewDefaultWorkingDirLocker(),
+				DraftPlanPolicyCheckLocker: events.NewDefaultWorkingDirLocker(),
 			}
 
 			repoDir := t.TempDir()

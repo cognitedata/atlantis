@@ -214,28 +214,29 @@ func (p *ProjectOutputWrapper) updateProjectPRStatus(commandName command.Name, c
 
 // DefaultProjectCommandRunner implements ProjectCommandRunner.
 type DefaultProjectCommandRunner struct {
-	VcsClient                 vcs.Client
-	Locker                    ProjectLocker
-	LockURLGenerator          LockURLGenerator
-	Logger                    logging.SimpleLogging
-	InitStepRunner            StepRunner
-	PlanStepRunner            StepRunner
-	ShowStepRunner            StepRunner
-	ApplyStepRunner           StepRunner
-	CancelStepRunner          StepRunner
-	PolicyCheckStepRunner     StepRunner
-	VersionStepRunner         StepRunner
-	ImportStepRunner          StepRunner
-	StateRmStepRunner         StepRunner
-	RunStepRunner             CustomStepRunner
-	EnvStepRunner             EnvStepRunner
-	MultiEnvStepRunner        MultiEnvStepRunner
-	PullApprovedChecker       runtime.PullApprovedChecker
-	WorkingDir                WorkingDir
-	Webhooks                  WebhooksSender
-	WorkingDirLocker          WorkingDirLocker
-	CommandRequirementHandler CommandRequirementHandler
-	CancellationTracker       CancellationTracker
+	VcsClient                  vcs.Client
+	Locker                     ProjectLocker
+	LockURLGenerator           LockURLGenerator
+	Logger                     logging.SimpleLogging
+	InitStepRunner             StepRunner
+	PlanStepRunner             StepRunner
+	ShowStepRunner             StepRunner
+	ApplyStepRunner            StepRunner
+	CancelStepRunner           StepRunner
+	PolicyCheckStepRunner      StepRunner
+	VersionStepRunner          StepRunner
+	ImportStepRunner           StepRunner
+	StateRmStepRunner          StepRunner
+	RunStepRunner              CustomStepRunner
+	EnvStepRunner              EnvStepRunner
+	MultiEnvStepRunner         MultiEnvStepRunner
+	PullApprovedChecker        runtime.PullApprovedChecker
+	WorkingDir                 WorkingDir
+	Webhooks                   WebhooksSender
+	WorkingDirLocker           WorkingDirLocker
+	DraftPlanPolicyCheckLocker WorkingDirLocker
+	CommandRequirementHandler  CommandRequirementHandler
+	CancellationTracker        CancellationTracker
 }
 
 // Plan runs terraform plan for the project described by ctx.
@@ -434,11 +435,16 @@ func (p *DefaultProjectCommandRunner) doPolicyCheck(ctx command.ProjectContext) 
 
 	if ctx.IsDraftPlan {
 		// Policy checks can take a long time on large projects.
-		// Skip lock acquisition for draftplan policy checks to avoid slowing down users who need quick feedback on iterative changes.
-		// Skip policy check entirely if the lock is currently held to prevent policy checks being run off partially-written plans and other edgecases.
-		if holder, locked := p.WorkingDirLocker.CurrentLockHolder(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName); locked {
-			return nil, fmt.Sprintf("Skipping draft plan policy check: another plan is currently running for this workspace. Run `atlantis draftplan` again once it finishes to re-check policies.", holder), nil
+		// Skip acquiring WorkingDirLocker on draftplan policy checks to avoid slowing down users who
+		// need quick feedback on quick iterative changes.
+		//
+		// Acquire DraftPlanPolicyCheckLocker to ensure that at most one draftplan olicy check runs per workspace at a time.
+		// If one is already running, we skip rather than queue, so a burst of quick draftplans doesn't cause a pile of policy checks to accumulate.
+		unlockFn, err := p.DraftPlanPolicyCheckLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
+		if err != nil {
+			return nil, "Skipping draft plan policy check: another draft plan policy check is already running for this workspace. Run `atlantis draftplan` again once it finishes to re-check policies.", nil
 		}
+		defer unlockFn()
 	} else {
 		unlockFn, err := p.WorkingDirLocker.TryLock(ctx.Pull.BaseRepo.FullName, ctx.Pull.Num, ctx.Workspace, ctx.RepoRelDir, ctx.ProjectName, command.PolicyCheck)
 		if err != nil {
