@@ -136,6 +136,11 @@ type ProjectContext struct {
 	// Allows custom policy check tools outside of Conftest to run in checks
 	CustomPolicyCheck bool
 	SilencePRComments []string
+	// UsesDraftPlan is true if this stage should read/write the draftplan's
+	// plan and show-result files instead of a real plan's. This is always true
+	// for the draftplan command itself, and is also set for a manual
+	// policycheck command run against an existing draftplan.
+	UsesDraftPlan bool
 
 	// TeamAllowlistChecker is used to check authorization on a project-level
 	TeamAllowlistChecker TeamAllowlistChecker
@@ -160,22 +165,38 @@ func (p ProjectContext) SetProjectScopeTags(scope tally.Scope) tally.Scope {
 	return scope.Tagged(tags.Loadtags())
 }
 
+// IsDraft returns true if this stage should operate on a draftplan's plan
+// and show-result files rather than a real plan's: either the draftplan
+// command itself, or a policycheck run manually against an existing
+// draftplan (UsesDraftPlan carries that signal forward for the latter).
+func (p ProjectContext) IsDraft() bool {
+	return p.CommandName == DraftPlan || p.UsesDraftPlan
+}
+
 // GetShowResultFileName returns the filename (not the path) to store the tf show result
 func (p ProjectContext) GetShowResultFileName() string {
+	suffix := ""
+	if p.IsDraft() {
+		suffix = "-draft"
+	}
 	if p.ProjectName == "" {
-		return fmt.Sprintf("%s.json", p.Workspace)
+		return fmt.Sprintf("%s%s.json", p.Workspace, suffix)
 	}
 	projName := strings.ReplaceAll(p.ProjectName, "/", planfileSlashReplace)
-	return fmt.Sprintf("%s-%s.json", projName, p.Workspace)
+	return fmt.Sprintf("%s-%s%s.json", projName, p.Workspace, suffix)
 }
 
 // GetPolicyCheckResultFileName returns the filename (not the path) to store the result from conftest_client.
 func (p ProjectContext) GetPolicyCheckResultFileName() string {
+	suffix := ""
+	if p.IsDraft() {
+		suffix = "-draft"
+	}
 	if p.ProjectName == "" {
-		return fmt.Sprintf("%s-policyout.json", p.Workspace)
+		return fmt.Sprintf("%s%s-policyout.json", p.Workspace, suffix)
 	}
 	projName := strings.ReplaceAll(p.ProjectName, "/", planfileSlashReplace)
-	return fmt.Sprintf("%s-%s-policyout.json", projName, p.Workspace)
+	return fmt.Sprintf("%s-%s%s-policyout.json", projName, p.Workspace, suffix)
 }
 
 // Gets a unique identifier for the current pull request as a single string

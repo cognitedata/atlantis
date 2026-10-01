@@ -18,6 +18,9 @@ import (
 
 type PendingPlanFinder interface {
 	Find(pullDir string) ([]PendingPlan, error)
+	// FindDraft finds all pending draftplans in pullDir, i.e. ones with a
+	// .draftplan file but no corresponding real plan.
+	FindDraft(pullDir string) ([]PendingPlan, error)
 	DeletePlans(pullDir string) error
 }
 
@@ -41,11 +44,18 @@ type PendingPlan struct {
 // directory where Atlantis will operate on this pull request. It's one level
 // up from where Atlantis clones the repo for each workspace.
 func (p *DefaultPendingPlanFinder) Find(pullDir string) ([]PendingPlan, error) {
-	plans, _, err := p.findWithAbsPaths(pullDir)
+	plans, _, err := p.findWithAbsPaths(pullDir, "tfplan")
 	return plans, err
 }
 
-func (p *DefaultPendingPlanFinder) findWithAbsPaths(pullDir string) ([]PendingPlan, []string, error) {
+// FindDraft finds all pending draftplans in pullDir, the same way Find does
+// for real plans.
+func (p *DefaultPendingPlanFinder) FindDraft(pullDir string) ([]PendingPlan, error) {
+	plans, _, err := p.findWithAbsPaths(pullDir, "draftplan")
+	return plans, err
+}
+
+func (p *DefaultPendingPlanFinder) findWithAbsPaths(pullDir string, ext string) ([]PendingPlan, []string, error) {
 	workspaceDirs, err := os.ReadDir(pullDir)
 	if err != nil {
 		return nil, nil, err
@@ -65,13 +75,13 @@ func (p *DefaultPendingPlanFinder) findWithAbsPaths(pullDir string) ([]PendingPl
 			return nil, nil, fmt.Errorf("running 'git ls-files . --others' in '%s' directory: %s: %w", repoDir, string(lsOut), err)
 		}
 		for file := range strings.SplitSeq(string(lsOut), "\n") {
-			if filepath.Ext(file) == ".tfplan" {
+			if filepath.Ext(file) == "."+ext {
 				// Ignore .terragrunt-cache dirs (#487)
 				if strings.Contains(file, ".terragrunt-cache/") {
 					continue
 				}
 
-				projectName, err := runtime.ProjectNameFromPlanfile(workspace, filepath.Base(file))
+				projectName, err := runtime.ProjectNameFromPlanfile(workspace, filepath.Base(file), ext)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -90,7 +100,7 @@ func (p *DefaultPendingPlanFinder) findWithAbsPaths(pullDir string) ([]PendingPl
 
 // deletePlans deletes all plans in pullDir.
 func (p *DefaultPendingPlanFinder) DeletePlans(pullDir string) error {
-	_, absPaths, err := p.findWithAbsPaths(pullDir)
+	_, absPaths, err := p.findWithAbsPaths(pullDir, "tfplan")
 	if err != nil {
 		return err
 	}

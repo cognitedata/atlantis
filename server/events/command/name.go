@@ -56,6 +56,7 @@ var AllCommentCommands = []Name{
 	Import,
 	State,
 	DraftPlan,
+	PolicyCheck,
 }
 
 // TitleString returns the string representation in title form.

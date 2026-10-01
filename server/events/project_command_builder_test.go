@@ -14,6 +14,7 @@ import (
 	. "github.com/petergtz/pegomock/v4"
 	tfclientmocks "github.com/runatlantis/atlantis/server/core/terraform/tfclient/mocks"
 	"github.com/runatlantis/atlantis/server/metrics/metricstest"
+	tally "github.com/uber-go/tally/v4"
 
 	"github.com/runatlantis/atlantis/server/core/config"
 	"github.com/runatlantis/atlantis/server/core/config/valid"
@@ -2477,6 +2478,136 @@ func TestDefaultProjectCommandBuilder_BuildVersionCommand(t *testing.T) {
 	Equals(t, "workspace2", ctxs[2].Workspace)
 	Equals(t, "project2", ctxs[3].RepoRelDir)
 	Equals(t, "workspace2", ctxs[3].Workspace)
+}
+
+func newPolicyCheckTestBuilder(t *testing.T, workingDir events.WorkingDir, scope tally.Scope) events.ProjectCommandBuilder {
+	t.Helper()
+	userConfig := defaultUserConfig
+	globalCfgArgs := valid.GlobalCfgArgs{AllowAllRepoSettings: false}
+	terraformClient := tfclientmocks.NewMockClient()
+
+	return events.NewProjectCommandBuilder(
+		false,
+		&config.ParserValidator{},
+		&events.DefaultProjectFinder{},
+		nil,
+		workingDir,
+		events.NewDefaultWorkingDirLocker(),
+		valid.NewGlobalCfgFromArgs(globalCfgArgs),
+		&events.DefaultPendingPlanFinder{},
+		&events.CommentParser{ExecutableName: "atlantis"},
+		userConfig.SkipCloneNoChanges,
+		userConfig.EnableRegExpCmd,
+		userConfig.EnableAutoMerge,
+		userConfig.EnableParallelPlan,
+		userConfig.EnableParallelApply,
+		userConfig.AutoDetectModuleFiles,
+		userConfig.AutoplanFileList,
+		userConfig.RestrictFileList,
+		userConfig.SilenceNoProjects,
+		userConfig.IncludeGitUntrackedFiles,
+		userConfig.AutoDiscoverMode,
+		scope,
+		terraformClient,
+	)
+}
+
+// With no specific project named, BuildPolicyCheckCommands should build a
+// policycheck context for every project with a pending draftplan, marking
+// each context as using the draft plan.
+func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_AllProjects(t *testing.T) {
+	RegisterMockTestingT(t)
+	tmpDir := DirStructure(t, map[string]any{
+		"workspace1": map[string]any{
+			"project1": map[string]any{
+				"main.tf":              nil,
+				"workspace1.draftplan": nil,
+			},
+		},
+		"workspace2": map[string]any{
+			"project1": map[string]any{
+				"main.tf":              nil,
+				"workspace2.draftplan": nil,
+			},
+		},
+	})
+	runCmd(t, filepath.Join(tmpDir, "workspace1"), "git", "init")
+	runCmd(t, filepath.Join(tmpDir, "workspace2"), "git", "init")
+
+	workingDir := mocks.NewMockWorkingDir()
+	When(workingDir.GetPullDir(Any[models.Repo](), Any[models.PullRequest]())).ThenReturn(tmpDir, nil)
+	When(workingDir.GetWorkingDir(Any[models.Repo](), Any[models.PullRequest](), Eq("workspace1"))).ThenReturn(filepath.Join(tmpDir, "workspace1"), nil)
+	When(workingDir.GetWorkingDir(Any[models.Repo](), Any[models.PullRequest](), Eq("workspace2"))).ThenReturn(filepath.Join(tmpDir, "workspace2"), nil)
+
+	logger := logging.NewNoopLogger(t)
+	scope := metricstest.NewLoggingScope(t, logger, "atlantis")
+	builder := newPolicyCheckTestBuilder(t, workingDir, scope)
+
+	ctxs, err := builder.BuildPolicyCheckCommands(
+		&command.Context{Log: logger, Scope: scope},
+		&events.CommentCommand{Name: command.PolicyCheck})
+	Ok(t, err)
+	Equals(t, 2, len(ctxs))
+	for _, ctx := range ctxs {
+		Equals(t, "project1", ctx.RepoRelDir)
+		Assert(t, ctx.UsesDraftPlan, "expected UsesDraftPlan to be true")
+	}
+}
+
+// Targeting a specific project that has a draftplan should succeed.
+func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_SpecificProject(t *testing.T) {
+	RegisterMockTestingT(t)
+	tmpDir := DirStructure(t, map[string]any{
+		"default": map[string]any{
+			"project1": map[string]any{
+				"main.tf":           nil,
+				"default.draftplan": nil,
+			},
+		},
+	})
+	runCmd(t, filepath.Join(tmpDir, "default"), "git", "init")
+
+	workingDir := mocks.NewMockWorkingDir()
+	When(workingDir.GetWorkingDir(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(filepath.Join(tmpDir, "default"), nil)
+
+	logger := logging.NewNoopLogger(t)
+	scope := metricstest.NewLoggingScope(t, logger, "atlantis")
+	builder := newPolicyCheckTestBuilder(t, workingDir, scope)
+
+	ctxs, err := builder.BuildPolicyCheckCommands(
+		&command.Context{Log: logger, Scope: scope},
+		&events.CommentCommand{Name: command.PolicyCheck, RepoRelDir: "project1"})
+	Ok(t, err)
+	Equals(t, 1, len(ctxs))
+	Equals(t, "project1", ctxs[0].RepoRelDir)
+	Assert(t, ctxs[0].UsesDraftPlan, "expected UsesDraftPlan to be true")
+}
+
+// Targeting a specific project with no draftplan yet should error clearly
+// rather than silently proceeding or producing a confusing downstream failure.
+func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_SpecificProject_NoDraftPlan(t *testing.T) {
+	RegisterMockTestingT(t)
+	tmpDir := DirStructure(t, map[string]any{
+		"default": map[string]any{
+			"project1": map[string]any{
+				"main.tf": nil,
+			},
+		},
+	})
+	runCmd(t, filepath.Join(tmpDir, "default"), "git", "init")
+
+	workingDir := mocks.NewMockWorkingDir()
+	When(workingDir.GetWorkingDir(Any[models.Repo](), Any[models.PullRequest](), Any[string]())).ThenReturn(filepath.Join(tmpDir, "default"), nil)
+
+	logger := logging.NewNoopLogger(t)
+	scope := metricstest.NewLoggingScope(t, logger, "atlantis")
+	builder := newPolicyCheckTestBuilder(t, workingDir, scope)
+
+	_, err := builder.BuildPolicyCheckCommands(
+		&command.Context{Log: logger, Scope: scope},
+		&events.CommentCommand{Name: command.PolicyCheck, RepoRelDir: "project1"})
+	Assert(t, err != nil, "expected an error when no draftplan has been run")
+	Assert(t, strings.Contains(err.Error(), "draftplan"), "expected error to mention draftplan, got: %s", err.Error())
 }
 
 // Test

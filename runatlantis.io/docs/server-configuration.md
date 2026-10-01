@@ -65,7 +65,7 @@ Notes:
 
 - Accepts a comma separated list, ex. `command1,command2`.
 - `version`, `plan`, `apply`, `unlock`, `approve_policies`, `import`, `state`, `policy_check` and `all` are available.
-- `policy_check` is an internal command that runs automatically after `plan` when [policy checking](policy-checking.md) is enabled. It must be explicitly allowlisted when using [`--gh-team-allowlist`](#gh-team-allowlist).
+- `policy_check` runs automatically after `plan` when [policy checking](policy-checking.md) is enabled. It can also be triggered manually as `atlantis policycheck` to check policies against an existing [draft plan](policy-checking.md#checking-a-draft-plan-manually) without re-running `plan`. Either way, it must be explicitly allowlisted when using [`--gh-team-allowlist`](#gh-team-allowlist).
 - `all` is a special keyword that allows all commands. If pass `all` then all other commands will be ignored.
 
 ### `--allow-draft-prs` <Badge text="v0.13.0" type="info"/>
