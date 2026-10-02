@@ -196,9 +196,9 @@ type ProjectStateCommandBuilder interface {
 }
 
 type ProjectPolicyCheckCommandBuilder interface {
-	// BuildPolicyCheckCommands builds project PolicyCheck commands for this ctx and
-	// comment, run manually against an existing draftplan. Errors if no draftplan
-	// has been run yet for the targeted project.
+	// BuildPolicyCheckCommands builds project DraftPolicyCheck commands for
+	// this ctx and comment, run manually against an existing draftplan. Errors
+	// if no draftplan has been run yet for the targeted project.
 	BuildPolicyCheckCommands(ctx *command.Context, comment *CommentCommand) ([]command.ProjectContext, error)
 }
 
@@ -313,9 +313,10 @@ func (p *DefaultProjectCommandBuilder) BuildVersionCommands(ctx *command.Context
 	return p.buildProjectCommand(ctx, cmd)
 }
 
-// BuildPolicyCheckCommands builds policycheck commands that run manually
-// against an existing draftplan, rather than chaining automatically off of a
-// real plan. Errors if no draftplan has been run yet for the targeted project.
+// BuildPolicyCheckCommands builds draft_policy_check commands that run
+// manually against an existing draftplan, rather than chaining automatically
+// off of a real plan. Errors if no draftplan has been run yet for the
+// targeted project.
 func (p *DefaultProjectCommandBuilder) BuildPolicyCheckCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
 	var projCtxs []command.ProjectContext
 	var err error
@@ -329,8 +330,6 @@ func (p *DefaultProjectCommandBuilder) BuildPolicyCheckCommands(ctx *command.Con
 	}
 
 	for i := range projCtxs {
-		projCtxs[i].UsesDraftPlan = true
-
 		repoDir, err := p.WorkingDir.GetWorkingDir(ctx.Pull.BaseRepo, ctx.Pull, projCtxs[i].Workspace)
 		if err != nil {
 			return nil, fmt.Errorf("no draft plan found for workspace %q, dir %q – run 'atlantis draftplan' first", projCtxs[i].Workspace, projCtxs[i].RepoRelDir)

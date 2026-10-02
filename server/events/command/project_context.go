@@ -136,11 +136,6 @@ type ProjectContext struct {
 	// Allows custom policy check tools outside of Conftest to run in checks
 	CustomPolicyCheck bool
 	SilencePRComments []string
-	// UsesDraftPlan is true if this stage should read/write the draftplan's
-	// plan and show-result files instead of a real plan's. This is always true
-	// for the draftplan command itself, and is also set for a manual
-	// policycheck command run against an existing draftplan.
-	UsesDraftPlan bool
 
 	// TeamAllowlistChecker is used to check authorization on a project-level
 	TeamAllowlistChecker TeamAllowlistChecker
@@ -167,10 +162,10 @@ func (p ProjectContext) SetProjectScopeTags(scope tally.Scope) tally.Scope {
 
 // IsDraft returns true if this stage should operate on a draftplan's plan
 // and show-result files rather than a real plan's: either the draftplan
-// command itself, or a policycheck run manually against an existing
-// draftplan (UsesDraftPlan carries that signal forward for the latter).
+// command itself, or a draft_policy_check run manually against an existing
+// draftplan.
 func (p ProjectContext) IsDraft() bool {
-	return p.CommandName == DraftPlan || p.UsesDraftPlan
+	return p.CommandName == DraftPlan || p.CommandName == DraftPolicyCheck
 }
 
 // GetShowResultFileName returns the filename (not the path) to store the tf show result

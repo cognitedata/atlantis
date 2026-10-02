@@ -28,9 +28,12 @@ func NewDraftPolicyCheckCommandRunner(
 }
 
 // DraftPolicyCheckCommandRunner handles the manually-triggered "atlantis
-// policycheck" comment command, which runs policy checks against an
+// draft_policy_check" comment command, which runs policy checks against an
 // existing draftplan rather than being chained automatically off of a real
-// plan. Unlike the automatic policy check that runs after every real plan,
+// plan. Its result is reported under its own commit status
+// (command.DraftPolicyCheck), distinct from the automatic policy_check
+// status that real plans/applies key off of, since draft output is not
+// final. Unlike the automatic policy check that runs after every real plan,
 // this is a deliberate, user-initiated action, so there's no need for it to
 // avoid holding locks or to cap concurrency the way draftplan's automatic
 // checks would have had to.
@@ -49,13 +52,13 @@ func (d *DraftPolicyCheckCommandRunner) Run(ctx *command.Context, cmd *CommentCo
 	baseRepo := ctx.Pull.BaseRepo
 	pull := ctx.Pull
 
-	if err := d.commitStatusUpdater.UpdateCombined(ctx.Log, baseRepo, pull, models.PendingCommitStatus, command.PolicyCheck); err != nil {
+	if err := d.commitStatusUpdater.UpdateCombined(ctx.Log, baseRepo, pull, models.PendingCommitStatus, command.DraftPolicyCheck); err != nil {
 		ctx.Log.Warn("unable to update commit status: %s", err)
 	}
 
 	projectCmds, err := d.prjCmdBuilder.BuildPolicyCheckCommands(ctx, cmd)
 	if err != nil {
-		if statusErr := d.commitStatusUpdater.UpdateCombined(ctx.Log, baseRepo, pull, models.FailedCommitStatus, command.PolicyCheck); statusErr != nil {
+		if statusErr := d.commitStatusUpdater.UpdateCombined(ctx.Log, baseRepo, pull, models.FailedCommitStatus, command.DraftPolicyCheck); statusErr != nil {
 			ctx.Log.Warn("unable to update commit status: %s", statusErr)
 		}
 		d.pullUpdater.updatePull(ctx, cmd, command.Result{Error: err})
@@ -63,10 +66,10 @@ func (d *DraftPolicyCheckCommandRunner) Run(ctx *command.Context, cmd *CommentCo
 	}
 
 	if len(projectCmds) == 0 {
-		ctx.Log.Info("determined there was no project to run policycheck in")
+		ctx.Log.Info("determined there was no project to run draft_policy_check in")
 		if !d.silenceVCSStatusNoProjects {
 			ctx.Log.Debug("setting VCS status to success with no projects found")
-			if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, baseRepo, pull, models.SuccessCommitStatus, command.PolicyCheck, 0, 0); err != nil {
+			if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, baseRepo, pull, models.SuccessCommitStatus, command.DraftPolicyCheck, 0, 0); err != nil {
 				ctx.Log.Warn("unable to update commit status: %s", err)
 			}
 		}
@@ -95,7 +98,7 @@ func (d *DraftPolicyCheckCommandRunner) updateCommitStatus(ctx *command.Context,
 		status = models.FailedCommitStatus
 	}
 
-	if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, ctx.Pull.BaseRepo, ctx.Pull, status, command.PolicyCheck, numSuccess, len(pullStatus.Projects)); err != nil {
+	if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, ctx.Pull.BaseRepo, ctx.Pull, status, command.DraftPolicyCheck, numSuccess, len(pullStatus.Projects)); err != nil {
 		ctx.Log.Warn("unable to update commit status: %s", err)
 	}
 }

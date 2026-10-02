@@ -19,14 +19,15 @@ import (
 )
 
 var (
-	planCommandTitle            = command.Plan.TitleString()
-	draftplanCommandTitle       = command.DraftPlan.TitleString()
-	applyCommandTitle           = command.Apply.TitleString()
-	policyCheckCommandTitle     = command.PolicyCheck.TitleString()
-	approvePoliciesCommandTitle = command.ApprovePolicies.TitleString()
-	versionCommandTitle         = command.Version.TitleString()
-	importCommandTitle          = command.Import.TitleString()
-	stateCommandTitle           = command.State.TitleString()
+	planCommandTitle             = command.Plan.TitleString()
+	draftplanCommandTitle        = command.DraftPlan.TitleString()
+	applyCommandTitle            = command.Apply.TitleString()
+	policyCheckCommandTitle      = command.PolicyCheck.TitleString()
+	draftPolicyCheckCommandTitle = command.DraftPolicyCheck.TitleString()
+	approvePoliciesCommandTitle  = command.ApprovePolicies.TitleString()
+	versionCommandTitle          = command.Version.TitleString()
+	importCommandTitle           = command.Import.TitleString()
+	stateCommandTitle            = command.State.TitleString()
 	// maxUnwrappedLines is the maximum number of lines the Terraform output
 	// can be before we wrap it in an expandable template.
 	maxUnwrappedLines = 12
@@ -259,7 +260,7 @@ func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []
 				numPlansWithChanges++
 			}
 			numPlanSuccesses++
-		} else if result.PolicyCheckResults != nil && common.Command == policyCheckCommandTitle {
+		} else if result.PolicyCheckResults != nil && (common.Command == policyCheckCommandTitle || common.Command == draftPolicyCheckCommandTitle) {
 			policyCheckResults := policyCheckResultsData{
 				PreConftestOutput:     result.PolicyCheckResults.PreConftestOutput,
 				PostConftestOutput:    result.PolicyCheckResults.PostConftestOutput,
@@ -357,9 +358,9 @@ func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []
 		tmpl = templates.Lookup("singleProjectPlanUnsuccessful")
 	case len(resultsTmplData) == 1 && common.Command == draftplanCommandTitle && numPlanSuccesses == 0:
 		tmpl = templates.Lookup("singleProjectDraftPlanUnsuccessful")
-	case len(resultsTmplData) == 1 && common.Command == policyCheckCommandTitle && numPolicyCheckSuccesses > 0:
+	case len(resultsTmplData) == 1 && (common.Command == policyCheckCommandTitle || common.Command == draftPolicyCheckCommandTitle) && numPolicyCheckSuccesses > 0:
 		tmpl = templates.Lookup("singleProjectPlanSuccess")
-	case len(resultsTmplData) == 1 && common.Command == policyCheckCommandTitle && numPolicyCheckSuccesses == 0:
+	case len(resultsTmplData) == 1 && (common.Command == policyCheckCommandTitle || common.Command == draftPolicyCheckCommandTitle) && numPolicyCheckSuccesses == 0:
 		tmpl = templates.Lookup("singleProjectPolicyUnsuccessful")
 	case len(resultsTmplData) == 1 && common.Command == versionCommandTitle && numVersionSuccesses > 0:
 		tmpl = templates.Lookup("singleProjectVersionSuccess")
@@ -380,7 +381,7 @@ func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []
 		tmpl = templates.Lookup("multiProjectPlan")
 	case common.Command == draftplanCommandTitle:
 		tmpl = templates.Lookup("multiProjectDraftPlan")
-	case common.Command == policyCheckCommandTitle:
+	case common.Command == policyCheckCommandTitle || common.Command == draftPolicyCheckCommandTitle:
 		if numPolicyCheckSuccesses == len(results) {
 			tmpl = templates.Lookup("multiProjectPolicy")
 		} else {

@@ -2512,9 +2512,8 @@ func newPolicyCheckTestBuilder(t *testing.T, workingDir events.WorkingDir, scope
 	)
 }
 
-// With no specific project named, BuildPolicyCheckCommands should build a
-// policycheck context for every project with a pending draftplan, marking
-// each context as using the draft plan.
+// With no specific project named, BuildPolicyCheckCommands should build
+// a draft_policy_check context for every project with a pending draftplan.
 func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_AllProjects(t *testing.T) {
 	RegisterMockTestingT(t)
 	tmpDir := DirStructure(t, map[string]any{
@@ -2545,12 +2544,13 @@ func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_AllProjects(t *te
 
 	ctxs, err := builder.BuildPolicyCheckCommands(
 		&command.Context{Log: logger, Scope: scope},
-		&events.CommentCommand{Name: command.PolicyCheck})
+		&events.CommentCommand{Name: command.DraftPolicyCheck})
 	Ok(t, err)
 	Equals(t, 2, len(ctxs))
 	for _, ctx := range ctxs {
 		Equals(t, "project1", ctx.RepoRelDir)
-		Assert(t, ctx.UsesDraftPlan, "expected UsesDraftPlan to be true")
+		Equals(t, command.DraftPolicyCheck, ctx.CommandName)
+		Assert(t, ctx.IsDraft(), "expected IsDraft() to be true")
 	}
 }
 
@@ -2576,11 +2576,12 @@ func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_SpecificProject(t
 
 	ctxs, err := builder.BuildPolicyCheckCommands(
 		&command.Context{Log: logger, Scope: scope},
-		&events.CommentCommand{Name: command.PolicyCheck, RepoRelDir: "project1"})
+		&events.CommentCommand{Name: command.DraftPolicyCheck, RepoRelDir: "project1"})
 	Ok(t, err)
 	Equals(t, 1, len(ctxs))
 	Equals(t, "project1", ctxs[0].RepoRelDir)
-	Assert(t, ctxs[0].UsesDraftPlan, "expected UsesDraftPlan to be true")
+	Equals(t, command.DraftPolicyCheck, ctxs[0].CommandName)
+	Assert(t, ctxs[0].IsDraft(), "expected IsDraft() to be true")
 }
 
 // Targeting a specific project with no draftplan yet should error clearly
@@ -2605,7 +2606,7 @@ func TestDefaultProjectCommandBuilder_BuildPolicyCheckCommands_SpecificProject_N
 
 	_, err := builder.BuildPolicyCheckCommands(
 		&command.Context{Log: logger, Scope: scope},
-		&events.CommentCommand{Name: command.PolicyCheck, RepoRelDir: "project1"})
+		&events.CommentCommand{Name: command.DraftPolicyCheck, RepoRelDir: "project1"})
 	Assert(t, err != nil, "expected an error when no draftplan has been run")
 	Assert(t, strings.Contains(err.Error(), "draftplan"), "expected error to mention draftplan, got: %s", err.Error())
 }

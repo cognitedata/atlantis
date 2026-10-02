@@ -53,11 +53,13 @@ func TestNewCommentParser(t *testing.T) {
 		{
 			name: "comment un-available commands filtered",
 			args: args{
-				// Autoplan cannot be used on comment command, so filtered
-				allowCommands: []command.Name{command.Plan, command.Apply, command.Unlock, command.PolicyCheck, command.ApprovePolicies, command.Autoplan, command.Version, command.Import},
+				// Autoplan and PolicyCheck (the internal, auto-chained-off-plan
+				// command) cannot be used on comment command, so filtered.
+				// DraftPolicyCheck is the comment-invokable one.
+				allowCommands: []command.Name{command.Plan, command.Apply, command.Unlock, command.PolicyCheck, command.ApprovePolicies, command.Autoplan, command.Version, command.Import, command.DraftPolicyCheck},
 			},
 			want: &events.CommentParser{
-				AllowCommands:    []command.Name{command.Version, command.Plan, command.Apply, command.Unlock, command.ApprovePolicies, command.Import, command.PolicyCheck},
+				AllowCommands:    []command.Name{command.Version, command.Plan, command.Apply, command.Unlock, command.ApprovePolicies, command.Import, command.DraftPolicyCheck},
 				BlockedExtraArgs: nil,
 			},
 		},
@@ -531,37 +533,35 @@ func TestParse_ValidCommand(t *testing.T) {
 	}
 }
 
-func TestParse_PolicyCheck(t *testing.T) {
-	// "policycheck" is a one-word alias for the policy_check command, which is
-	// the name used internally (and the one '--allow-commands' expects).
-	r := commentParser.Parse("atlantis policycheck", models.Github)
+func TestParse_DraftPolicyCheck(t *testing.T) {
+	r := commentParser.Parse("atlantis draft_policy_check", models.Github)
 	Equals(t, "", r.CommentResponse)
 	Equals(t, &events.CommentCommand{
 		RepoRelDir:  "",
 		Flags:       nil,
-		Name:        command.PolicyCheck,
+		Name:        command.DraftPolicyCheck,
 		Verbose:     false,
 		Workspace:   "",
 		ProjectName: "",
 	}, r.Command)
 
-	r = commentParser.Parse("atlantis policycheck -d dir1 -w myworkspace", models.Github)
+	r = commentParser.Parse("atlantis draft_policy_check -d dir1 -w myworkspace", models.Github)
 	Equals(t, "", r.CommentResponse)
 	Equals(t, &events.CommentCommand{
 		RepoRelDir:  "dir1",
 		Flags:       nil,
-		Name:        command.PolicyCheck,
+		Name:        command.DraftPolicyCheck,
 		Verbose:     false,
 		Workspace:   "myworkspace",
 		ProjectName: "",
 	}, r.Command)
 
-	r = commentParser.Parse("atlantis policycheck -p myproject", models.Github)
+	r = commentParser.Parse("atlantis draft_policy_check -p myproject", models.Github)
 	Equals(t, "", r.CommentResponse)
 	Equals(t, &events.CommentCommand{
 		RepoRelDir:  "",
 		Flags:       nil,
-		Name:        command.PolicyCheck,
+		Name:        command.DraftPolicyCheck,
 		Verbose:     false,
 		Workspace:   "",
 		ProjectName: "myproject",
@@ -1144,9 +1144,10 @@ Commands:
            Runs plan in draft mode. Runs quickly without locks or
            refreshing, plan is only added to PR comments. Cannot be applied.
            To plan a specific project, use the -d, -w and -p flags.
-  policycheck
+  draft_policy_check
            Runs policy checks against the most recent draftplan.
-           Requires a draftplan to have already been run.
+           Requires a draftplan to have already been run. Its output
+           reflects that draftplan, not a final, applyable plan.
            To check a specific project, use the -d, -w and -p flags.
   apply    Runs 'terraform apply' on all unapplied plans from this pull request.
            To only apply a specific plan, use the -d, -w and -p flags.
