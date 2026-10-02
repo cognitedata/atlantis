@@ -649,8 +649,7 @@ Commands:
 {{- if .AllowDraftPolicyCheck }}
   draft_policy_check
            Runs policy checks against the most recent draftplan.
-           Requires a draftplan to have already been run. Its output
-           reflects that draftplan, not a final, applyable plan.
+           Requires a draftplan to have already been run.
            To check a specific project, use the -d, -w and -p flags.
 {{- end }}
 {{- if .AllowApply }}

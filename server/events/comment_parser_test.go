@@ -53,9 +53,7 @@ func TestNewCommentParser(t *testing.T) {
 		{
 			name: "comment un-available commands filtered",
 			args: args{
-				// Autoplan and PolicyCheck (the internal, auto-chained-off-plan
-				// command) cannot be used on comment command, so filtered.
-				// DraftPolicyCheck is the comment-invokable one.
+				// PolicyCheck and Autoplan cannot be used on comment command, so filtered
 				allowCommands: []command.Name{command.Plan, command.Apply, command.Unlock, command.PolicyCheck, command.ApprovePolicies, command.Autoplan, command.Version, command.Import, command.DraftPolicyCheck},
 			},
 			want: &events.CommentParser{
@@ -1146,8 +1144,7 @@ Commands:
            To plan a specific project, use the -d, -w and -p flags.
   draft_policy_check
            Runs policy checks against the most recent draftplan.
-           Requires a draftplan to have already been run. Its output
-           reflects that draftplan, not a final, applyable plan.
+           Requires a draftplan to have already been run.
            To check a specific project, use the -d, -w and -p flags.
   apply    Runs 'terraform apply' on all unapplied plans from this pull request.
            To only apply a specific plan, use the -d, -w and -p flags.

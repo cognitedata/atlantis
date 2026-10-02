@@ -91,9 +91,7 @@ func MustConstraint(constraint string) version.Constraints {
 
 // GetPlanFilename returns the filename (not the path) of the generated tf
 // plan given a workspace, project name, and whether this is a draftplan.
-// Draftplans use extension .draftplan, and real plans use .tfplan, so that a
-// draftplan's plan file is never confused with (or overwritten by) a real
-// plan's, and apply/import/state can never resolve to a draftplan's file.
+// Draftplans use extension .draftplan, and real plans use .tfplan.
 func GetPlanFilename(workspace string, projName string, isDraft bool) string {
 	ext := "tfplan"
 	if isDraft {
@@ -117,8 +115,7 @@ func IsRemotePlan(planContents []byte) bool {
 
 // ProjectNameFromPlanfile returns the project name that a planfile with name
 // filename is for. If filename is for a project without a name then it will
-// return an empty string. workspace is the workspace this project is in. ext
-// is the planfile extension to match, e.g. "tfplan" or "draftplan".
+// return an empty string. workspace is the workspace this project is in.
 func ProjectNameFromPlanfile(workspace string, filename string, ext string) (string, error) {
 	r, err := regexp.Compile(fmt.Sprintf(`(.*?)-%s\.%s`, workspace, ext))
 	if err != nil {

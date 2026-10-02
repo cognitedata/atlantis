@@ -33,7 +33,6 @@ func (a *ApplyStepRunner) Run(ctx command.ProjectContext, extraArgs []string, pa
 		return "", errors.New("cannot run apply with -target because we are applying an already generated plan. Instead, run -target with atlantis plan")
 	}
 
-	// isDraft is always false here: apply must never resolve to a draftplan's file.
 	planPath := filepath.Join(path, GetPlanFilename(ctx.Workspace, ctx.ProjectName, false))
 	contents, err := os.ReadFile(planPath)
 	if os.IsNotExist(err) {

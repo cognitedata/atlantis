@@ -28,23 +28,15 @@ func NewDraftPolicyCheckCommandRunner(
 }
 
 // DraftPolicyCheckCommandRunner handles the manually-triggered "atlantis
-// draft_policy_check" comment command, which runs policy checks against an
-// existing draftplan rather than being chained automatically off of a real
-// plan. Its result is reported under its own commit status
-// (command.DraftPolicyCheck), distinct from the automatic policy_check
-// status that real plans/applies key off of, since draft output is not
-// final. Unlike the automatic policy check that runs after every real plan,
-// this is a deliberate, user-initiated action, so there's no need for it to
-// avoid holding locks or to cap concurrency the way draftplan's automatic
-// checks would have had to.
+// draft_policy_check" comment command.
+// Runs policy checks against the current .draftplan file.
+// Does not affected whether a plan can be applied or not.
 type DraftPolicyCheckCommandRunner struct {
-	commitStatusUpdater CommitStatusUpdater
-	pullUpdater         *PullUpdater
-	dbUpdater           *DBUpdater
-	prjCmdBuilder       ProjectPolicyCheckCommandBuilder
-	prjCmdRunner        ProjectPolicyCheckCommandRunner
-	// silenceVCSStatusNoProjects is whether Atlantis should update the commit
-	// status if no projects are found.
+	commitStatusUpdater        CommitStatusUpdater
+	pullUpdater                *PullUpdater
+	dbUpdater                  *DBUpdater
+	prjCmdBuilder              ProjectPolicyCheckCommandBuilder
+	prjCmdRunner               ProjectPolicyCheckCommandRunner
 	silenceVCSStatusNoProjects bool
 }
 

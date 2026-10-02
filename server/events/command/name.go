@@ -37,10 +37,7 @@ const (
 	Cancel
 	// DraftPlan is a light-weight plan that cannot be applied
 	DraftPlan
-	// DraftPolicyCheck is a policy check run manually against an existing
-	// draftplan rather than being chained automatically off of a real plan.
-	// Its output is not final: it reflects the draftplan at the time it ran,
-	// not necessarily the latest commit or a plan that can be applied.
+	// DraftPolicyCheck is a command to run a policy check against a draftplan.
 	DraftPolicyCheck
 	// Adding more? Don't forget to update String() below
 )

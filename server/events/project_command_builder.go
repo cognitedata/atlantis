@@ -871,8 +871,7 @@ func (p *DefaultProjectCommandBuilder) getCfg(ctx *command.Context, projectName 
 }
 
 // buildAllProjectCommandsByPlan builds contexts for a command for every project that has
-// pending plans in this ctx. If useDraft is true, matches against pending
-// draftplans instead of real plans.
+// pending plans (or draftplans) in this ctx.
 func (p *DefaultProjectCommandBuilder) buildAllProjectCommandsByPlan(ctx *command.Context, commentCmd *CommentCommand, useDraft bool) ([]command.ProjectContext, error) {
 	pullDir, err := p.WorkingDir.GetPullDir(ctx.Pull.BaseRepo, ctx.Pull)
 	if err != nil {

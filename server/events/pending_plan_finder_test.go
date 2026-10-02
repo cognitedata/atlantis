@@ -259,9 +259,7 @@ func TestPendingPlanFinder_FindPlanCheckedIn(t *testing.T) {
 	Equals(t, 0, len(actPlans))
 }
 
-// FindDraft should only pick up .draftplan files, and Find should only pick
-// up .tfplan files - the two never collide even when sitting side by side in
-// the same project/workspace.
+// Validate that .draftplan and .tfplan files are found correctly.
 func TestPendingPlanFinder_FindDraft(t *testing.T) {
 	tmpDir := DirStructure(t, map[string]any{
 		"default": map[string]any{

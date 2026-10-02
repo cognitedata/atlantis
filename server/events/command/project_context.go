@@ -160,10 +160,8 @@ func (p ProjectContext) SetProjectScopeTags(scope tally.Scope) tally.Scope {
 	return scope.Tagged(tags.Loadtags())
 }
 
-// IsDraft returns true if this stage should operate on a draftplan's plan
-// and show-result files rather than a real plan's: either the draftplan
-// command itself, or a draft_policy_check run manually against an existing
-// draftplan.
+// IsDraft returns true if this a command should operate on a draftplan's
+// .draftplan file
 func (p ProjectContext) IsDraft() bool {
 	return p.CommandName == DraftPlan || p.CommandName == DraftPolicyCheck
 }

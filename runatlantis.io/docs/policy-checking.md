@@ -241,7 +241,7 @@ repos:
 
 A draft plan (`atlantis draftplan`) is a fast, lightweight plan that skips fetching remote state. It does not automatically run policy checks, since policy checks can take a long time on large projects and would slow down the quick feedback a draft plan is meant to provide.
 
-Once a draft plan has been run, you can check it against your policies on demand with `atlantis draft_policy_check`. It's a distinct command from the automatic `policy_check`, both so it's clear it's checking a draftplan rather than a final plan, and so its result is reported under its own commit status rather than the one real plans/applies key off of:
+Once a draft plan has been run, you can check it against your policies on demand with `atlantis draft_policy_check`.
 
 ```shell
 atlantis draft_policy_check
@@ -253,7 +253,7 @@ As with `plan` and `apply`, you can target a specific project with `-d`, `-w`, a
 atlantis draft_policy_check -d dir -w workspace
 ```
 
-`atlantis draft_policy_check` requires a draft plan to already exist for the project(s) being checked - if one hasn't been run yet, it returns an error asking you to run `atlantis draftplan` first, since there's nothing to check it against. Its output reflects that draftplan at the time it ran - it is not a substitute for the policy check that runs automatically against a real `plan`, and is not final. It must be allowlisted separately from `policy_check` - see [`--allow-commands`](server-configuration.md#allow-commands).
+`atlantis draft_policy_check` requires a draft plan to already exist for the project(s) being checked. Its output reflects that draftplan at the time it ran - it is not a substitute for the policy check that runs automatically against a real `plan`, and is not final.
 
 For repo level `atlantis.yaml` config:
 
