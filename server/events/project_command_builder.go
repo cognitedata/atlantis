@@ -15,6 +15,7 @@ import (
 	tally "github.com/uber-go/tally/v4"
 
 	"github.com/runatlantis/atlantis/server/core/config/valid"
+	"github.com/runatlantis/atlantis/server/core/runtime"
 	"github.com/runatlantis/atlantis/server/core/terraform/tfclient"
 	"github.com/runatlantis/atlantis/server/logging"
 	"github.com/runatlantis/atlantis/server/metrics"
@@ -194,6 +195,13 @@ type ProjectStateCommandBuilder interface {
 	BuildStateRmCommands(ctx *command.Context, comment *CommentCommand) ([]command.ProjectContext, error)
 }
 
+type ProjectPolicyCheckCommandBuilder interface {
+	// BuildPolicyCheckCommands builds project DraftPolicyCheck commands for
+	// this ctx and comment, run manually against an existing draftplan. Errors
+	// if no draftplan has been run yet for the targeted project.
+	BuildPolicyCheckCommands(ctx *command.Context, comment *CommentCommand) ([]command.ProjectContext, error)
+}
+
 //go:generate go tool pegomock generate github.com/runatlantis/atlantis/server/events --package mocks -o mocks/mock_project_command_builder.go ProjectCommandBuilder
 
 // ProjectCommandBuilder builds commands that run on individual projects.
@@ -204,6 +212,7 @@ type ProjectCommandBuilder interface {
 	ProjectVersionCommandBuilder
 	ProjectImportCommandBuilder
 	ProjectStateCommandBuilder
+	ProjectPolicyCheckCommandBuilder
 }
 
 // DefaultProjectCommandBuilder implements ProjectCommandBuilder.
@@ -285,23 +294,49 @@ func (p *DefaultProjectCommandBuilder) BuildPlanCommands(ctx *command.Context, c
 // See ProjectCommandBuilder.BuildApplyCommands.
 func (p *DefaultProjectCommandBuilder) BuildApplyCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
 	if !cmd.IsForSpecificProject() {
-		return p.buildAllProjectCommandsByPlan(ctx, cmd)
+		return p.buildAllProjectCommandsByPlan(ctx, cmd, false)
 	}
 	return p.buildProjectCommand(ctx, cmd)
 }
 
 func (p *DefaultProjectCommandBuilder) BuildApprovePoliciesCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
 	if !cmd.IsForSpecificProject() {
-		return p.buildAllProjectCommandsByPlan(ctx, cmd)
+		return p.buildAllProjectCommandsByPlan(ctx, cmd, false)
 	}
 	return p.buildProjectCommand(ctx, cmd)
 }
 
 func (p *DefaultProjectCommandBuilder) BuildVersionCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
 	if !cmd.IsForSpecificProject() {
-		return p.buildAllProjectCommandsByPlan(ctx, cmd)
+		return p.buildAllProjectCommandsByPlan(ctx, cmd, false)
 	}
 	return p.buildProjectCommand(ctx, cmd)
+}
+
+func (p *DefaultProjectCommandBuilder) BuildPolicyCheckCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
+	var projCtxs []command.ProjectContext
+	var err error
+	if cmd.IsForSpecificProject() {
+		projCtxs, err = p.buildProjectCommand(ctx, cmd)
+	} else {
+		projCtxs, err = p.buildAllProjectCommandsByPlan(ctx, cmd, true)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range projCtxs {
+		repoDir, err := p.WorkingDir.GetWorkingDir(ctx.Pull.BaseRepo, ctx.Pull, projCtxs[i].Workspace)
+		if err != nil {
+			return nil, fmt.Errorf("no draft plan found for workspace %q, dir %q – run 'atlantis draftplan' first", projCtxs[i].Workspace, projCtxs[i].RepoRelDir)
+		}
+		draftPlanFile := filepath.Join(repoDir, projCtxs[i].RepoRelDir, runtime.GetPlanFilename(projCtxs[i].Workspace, projCtxs[i].ProjectName, true))
+		if _, err := os.Stat(draftPlanFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("no draft plan found for workspace %q, dir %q – run 'atlantis draftplan' first", projCtxs[i].Workspace, projCtxs[i].RepoRelDir)
+		}
+	}
+
+	return projCtxs, nil
 }
 
 func (p *DefaultProjectCommandBuilder) BuildImportCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
@@ -832,14 +867,19 @@ func (p *DefaultProjectCommandBuilder) getCfg(ctx *command.Context, projectName 
 }
 
 // buildAllProjectCommandsByPlan builds contexts for a command for every project that has
-// pending plans in this ctx.
-func (p *DefaultProjectCommandBuilder) buildAllProjectCommandsByPlan(ctx *command.Context, commentCmd *CommentCommand) ([]command.ProjectContext, error) {
+// pending plans (or draftplans) in this ctx.
+func (p *DefaultProjectCommandBuilder) buildAllProjectCommandsByPlan(ctx *command.Context, commentCmd *CommentCommand, useDraft bool) ([]command.ProjectContext, error) {
 	pullDir, err := p.WorkingDir.GetPullDir(ctx.Pull.BaseRepo, ctx.Pull)
 	if err != nil {
 		return nil, err
 	}
 
-	plans, err := p.PendingPlanFinder.Find(pullDir)
+	var plans []PendingPlan
+	if useDraft {
+		plans, err = p.PendingPlanFinder.FindDraft(pullDir)
+	} else {
+		plans, err = p.PendingPlanFinder.Find(pullDir)
+	}
 	if err != nil {
 		return nil, err
 	}

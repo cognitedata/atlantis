@@ -37,6 +37,8 @@ const (
 	Cancel
 	// DraftPlan is a light-weight plan that cannot be applied
 	DraftPlan
+	// DraftPolicyCheck is a command to run a policy check against a draftplan.
+	DraftPolicyCheck
 	// Adding more? Don't forget to update String() below
 )
 
@@ -56,6 +58,7 @@ var AllCommentCommands = []Name{
 	Import,
 	State,
 	DraftPlan,
+	DraftPolicyCheck,
 }
 
 // TitleString returns the string representation in title form.
@@ -87,6 +90,8 @@ func (c Name) String() string {
 		return "cancel"
 	case DraftPlan:
 		return "draftplan"
+	case DraftPolicyCheck:
+		return "draft_policy_check"
 	}
 	return ""
 }
@@ -156,6 +161,8 @@ func ParseCommandName(name string) (Name, error) {
 		return Unlock, nil
 	case "policy_check":
 		return PolicyCheck, nil
+	case "draft_policy_check":
+		return DraftPolicyCheck, nil
 	case "approve_policies":
 		return ApprovePolicies, nil
 	case "version":

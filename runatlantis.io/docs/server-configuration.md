@@ -64,8 +64,9 @@ List of allowed commands to be run on the Atlantis server, Defaults to `version,
 Notes:
 
 - Accepts a comma separated list, ex. `command1,command2`.
-- `version`, `plan`, `apply`, `unlock`, `approve_policies`, `import`, `state`, `policy_check` and `all` are available.
+- `version`, `plan`, `apply`, `unlock`, `approve_policies`, `import`, `state`, `policy_check`, `draft_policy_check` and `all` are available.
 - `policy_check` is an internal command that runs automatically after `plan` when [policy checking](policy-checking.md) is enabled. It must be explicitly allowlisted when using [`--gh-team-allowlist`](#gh-team-allowlist).
+- `draft_policy_check` is a separate, manually-triggered command that checks policies against an existing [draft plan](policy-checking.md#manually-run-a-policy-check-on-a-draftplan) without re-running `plan`. It must be allowlisted independently of `policy_check`.
 - `all` is a special keyword that allows all commands. If pass `all` then all other commands will be ignored.
 
 ### `--allow-draft-prs` <Badge text="v0.13.0" type="info"/>

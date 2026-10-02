@@ -314,6 +314,14 @@ func (e *CommentParser) Parse(rawComment string, vcsHost models.VCSHostType) Com
 		flagSet.StringVarP(&dir, dirFlagLong, dirFlagShort, "", "Which directory to run state command in relative to root of repo, ex. 'child/dir'.")
 		flagSet.StringVarP(&project, projectFlagLong, projectFlagShort, "", "Which project to run state command for. Refers to the name of the project configured in a repo config file. Cannot be used at same time as workspace or dir flags.")
 		flagSet.BoolVarP(&verbose, verboseFlagLong, verboseFlagShort, false, "Append Atlantis log to comment.")
+	case command.DraftPolicyCheck.String():
+		name = command.DraftPolicyCheck
+		flagSet = pflag.NewFlagSet(command.DraftPolicyCheck.String(), pflag.ContinueOnError)
+		flagSet.SetOutput(io.Discard)
+		flagSet.StringVarP(&workspace, workspaceFlagLong, workspaceFlagShort, "", "Run policy check for this Terraform workspace's draft plan.")
+		flagSet.StringVarP(&dir, dirFlagLong, dirFlagShort, "", "Run policy check for the draft plan in this directory, relative to root of repo, ex. 'child/dir'.")
+		flagSet.StringVarP(&project, projectFlagLong, projectFlagShort, "", "Run policy check for this project's draft plan. Refers to the name of the project configured in a repo config file. Cannot be used at same time as workspace or dir flags.")
+		flagSet.BoolVarP(&verbose, verboseFlagLong, verboseFlagShort, false, "Append Atlantis log to comment.")
 	default:
 		return CommentParseResult{CommentResponse: fmt.Sprintf("Error: unknown command %q – this is a bug", cmd)}
 	}
@@ -576,25 +584,27 @@ func (e *CommentParser) HelpComment() string {
 	buf := &bytes.Buffer{}
 	var tmpl = template.Must(template.New("").Parse(helpCommentTemplate))
 	if err := tmpl.Execute(buf, struct {
-		ExecutableName       string
-		AllowVersion         bool
-		AllowDraftPlan       bool
-		AllowPlan            bool
-		AllowApply           bool
-		AllowUnlock          bool
-		AllowApprovePolicies bool
-		AllowImport          bool
-		AllowState           bool
+		ExecutableName        string
+		AllowVersion          bool
+		AllowDraftPlan        bool
+		AllowPlan             bool
+		AllowApply            bool
+		AllowUnlock           bool
+		AllowApprovePolicies  bool
+		AllowImport           bool
+		AllowState            bool
+		AllowDraftPolicyCheck bool
 	}{
-		ExecutableName:       e.ExecutableName,
-		AllowVersion:         e.isAllowedCommand(command.Version.String()),
-		AllowDraftPlan:       e.isAllowedCommand(command.DraftPlan.String()),
-		AllowPlan:            e.isAllowedCommand(command.Plan.String()),
-		AllowApply:           e.isAllowedCommand(command.Apply.String()),
-		AllowUnlock:          e.isAllowedCommand(command.Unlock.String()),
-		AllowApprovePolicies: e.isAllowedCommand(command.ApprovePolicies.String()),
-		AllowImport:          e.isAllowedCommand(command.Import.String()),
-		AllowState:           e.isAllowedCommand(command.State.String()),
+		ExecutableName:        e.ExecutableName,
+		AllowVersion:          e.isAllowedCommand(command.Version.String()),
+		AllowDraftPlan:        e.isAllowedCommand(command.DraftPlan.String()),
+		AllowPlan:             e.isAllowedCommand(command.Plan.String()),
+		AllowApply:            e.isAllowedCommand(command.Apply.String()),
+		AllowUnlock:           e.isAllowedCommand(command.Unlock.String()),
+		AllowApprovePolicies:  e.isAllowedCommand(command.ApprovePolicies.String()),
+		AllowImport:           e.isAllowedCommand(command.Import.String()),
+		AllowState:            e.isAllowedCommand(command.State.String()),
+		AllowDraftPolicyCheck: e.isAllowedCommand(command.DraftPolicyCheck.String()),
 	}); err != nil {
 		return fmt.Sprintf("Failed to render template, this is a bug: %v", err)
 	}
@@ -635,6 +645,12 @@ Commands:
            Runs plan in draft mode. Runs quickly without locks or
            refreshing, plan is only added to PR comments. Cannot be applied.
            To plan a specific project, use the -d, -w and -p flags.
+{{- end }}
+{{- if .AllowDraftPolicyCheck }}
+  draft_policy_check
+           Runs policy checks against the most recent draftplan.
+           Requires a draftplan to have already been run.
+           To check a specific project, use the -d, -w and -p flags.
 {{- end }}
 {{- if .AllowApply }}
   apply    Runs 'terraform apply' on all unapplied plans from this pull request.

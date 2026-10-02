@@ -259,6 +259,45 @@ func TestPendingPlanFinder_FindPlanCheckedIn(t *testing.T) {
 	Equals(t, 0, len(actPlans))
 }
 
+// Validate that .draftplan and .tfplan files are found correctly.
+func TestPendingPlanFinder_FindDraft(t *testing.T) {
+	tmpDir := DirStructure(t, map[string]any{
+		"default": map[string]any{
+			"default.draftplan":             nil,
+			"projectname-default.draftplan": nil,
+			"default.tfplan":                nil,
+		},
+	})
+	runCmd(t, filepath.Join(tmpDir, "default"), "git", "init")
+
+	pf := &events.DefaultPendingPlanFinder{}
+
+	draftPlans, err := pf.FindDraft(tmpDir)
+	Ok(t, err)
+	var draftComparable []events.PendingPlan
+	for _, p := range draftPlans {
+		p.RepoDir = strings.ReplaceAll(p.RepoDir, tmpDir, "???")
+		draftComparable = append(draftComparable, p)
+	}
+	Equals(t, []events.PendingPlan{
+		{
+			RepoDir:    "???/default",
+			RepoRelDir: ".",
+			Workspace:  "default",
+		},
+		{
+			RepoDir:     "???/default",
+			RepoRelDir:  ".",
+			Workspace:   "default",
+			ProjectName: "projectname",
+		},
+	}, draftComparable)
+
+	realPlans, err := pf.Find(tmpDir)
+	Ok(t, err)
+	Equals(t, 1, len(realPlans))
+}
+
 func runCmdErrCode(t *testing.T, dir string, errCode int, name string, args ...string) string {
 	t.Helper()
 	cpCmd := exec.Command(name, args...)

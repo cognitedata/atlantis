@@ -52,6 +52,7 @@ var dbUpdater *events.DBUpdater
 var pullUpdater *events.PullUpdater
 var autoMerger *events.AutoMerger
 var policyCheckCommandRunner *events.PolicyCheckCommandRunner
+var draftPolicyCheckCommandRunner *events.DraftPolicyCheckCommandRunner
 var approvePoliciesCommandRunner *events.ApprovePoliciesCommandRunner
 var planCommandRunner *events.PlanCommandRunner
 var applyLockChecker *lockingmocks.MockApplyLockChecker
@@ -151,6 +152,14 @@ func setup(t *testing.T, options ...func(testConfig *TestConfig)) *vcsmocks.Mock
 		false,
 	)
 
+	draftPolicyCheckCommandRunner = events.NewDraftPolicyCheckCommandRunner(
+		commitUpdater,
+		projectCommandBuilder,
+		projectCommandRunner,
+		pullUpdater,
+		testConfig.silenceVCSStatusNoProjects,
+	)
+
 	planCommandRunner = events.NewPlanCommandRunner(
 		testConfig.silenceVCSStatusNoPlans,
 		testConfig.silenceVCSStatusNoProjects,
@@ -227,13 +236,14 @@ func setup(t *testing.T, options ...func(testConfig *TestConfig)) *vcsmocks.Mock
 	)
 
 	commentCommandRunnerByCmd := map[command.Name]events.CommentCommandRunner{
-		command.Plan:            planCommandRunner,
-		command.DraftPlan:       planCommandRunner,
-		command.Apply:           applyCommandRunner,
-		command.ApprovePolicies: approvePoliciesCommandRunner,
-		command.Unlock:          unlockCommandRunner,
-		command.Version:         versionCommandRunner,
-		command.Import:          importCommandRunner,
+		command.Plan:             planCommandRunner,
+		command.DraftPlan:        planCommandRunner,
+		command.Apply:            applyCommandRunner,
+		command.ApprovePolicies:  approvePoliciesCommandRunner,
+		command.Unlock:           unlockCommandRunner,
+		command.Version:          versionCommandRunner,
+		command.Import:           importCommandRunner,
+		command.DraftPolicyCheck: draftPolicyCheckCommandRunner,
 	}
 
 	preWorkflowHooksCommandRunner = mocks.NewMockPreWorkflowHooksCommandRunner()

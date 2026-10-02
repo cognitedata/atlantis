@@ -107,6 +107,8 @@ func (cb *DefaultProjectCommandContextBuilder) BuildProjectContext(
 		steps = prjCfg.Workflow.Plan.Steps
 	case command.Apply:
 		steps = prjCfg.Workflow.Apply.Steps
+	case command.PolicyCheck, command.DraftPolicyCheck:
+		steps = prjCfg.Workflow.PolicyCheck.Steps
 	case command.Version:
 		// Setting statically since there will only be one step
 		steps = []valid.Step{{

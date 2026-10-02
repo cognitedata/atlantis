@@ -828,6 +828,14 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		vcsClient,
 	)
 
+	draftPolicyCheckCommandRunner := events.NewDraftPolicyCheckCommandRunner(
+		commitStatusUpdater,
+		projectCommandBuilder,
+		instrumentedProjectCmdRunner,
+		pullUpdater,
+		userConfig.SilenceVCSStatusNoProjects,
+	)
+
 	unlockCommandRunner := events.NewUnlockCommandRunner(
 		deleteLockCommand,
 		vcsClient,
@@ -866,15 +874,16 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 	)
 
 	commentCommandRunnerByCmd := map[command.Name]events.CommentCommandRunner{
-		command.Plan:            planCommandRunner,
-		command.DraftPlan:       planCommandRunner,
-		command.Apply:           applyCommandRunner,
-		command.ApprovePolicies: approvePoliciesCommandRunner,
-		command.Unlock:          unlockCommandRunner,
-		command.Version:         versionCommandRunner,
-		command.Import:          importCommandRunner,
-		command.State:           stateCommandRunner,
-		command.Cancel:          cancelCommandRunner,
+		command.Plan:             planCommandRunner,
+		command.DraftPlan:        planCommandRunner,
+		command.Apply:            applyCommandRunner,
+		command.ApprovePolicies:  approvePoliciesCommandRunner,
+		command.Unlock:           unlockCommandRunner,
+		command.Version:          versionCommandRunner,
+		command.Import:           importCommandRunner,
+		command.State:            stateCommandRunner,
+		command.Cancel:           cancelCommandRunner,
+		command.DraftPolicyCheck: draftPolicyCheckCommandRunner,
 	}
 
 	var teamAllowlistChecker command.TeamAllowlistChecker

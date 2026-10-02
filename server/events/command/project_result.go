@@ -70,7 +70,7 @@ func (p ProjectResult) PlanStatus() models.ProjectPlanStatus {
 			return models.PlannedNoChangesPlanStatus
 		}
 		return models.PlannedPlanStatus
-	case PolicyCheck, ApprovePolicies:
+	case PolicyCheck, ApprovePolicies, DraftPolicyCheck:
 		if p.Error != nil {
 			return models.ErroredPolicyCheckStatus
 		} else if p.Failure != "" {
