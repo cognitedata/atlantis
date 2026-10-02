@@ -1,4 +1,4 @@
-// Copyright 2025 The Atlantis Authors
+// Copyright 2026 The Atlantis Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package events_test
@@ -17,14 +17,8 @@ import (
 	. "github.com/runatlantis/atlantis/testing"
 )
 
-// TestDraftPolicyCheckCommandRunner_Run covers two things regressions were
-// just introduced and fixed for:
-//  1. ProjectResult.PlanStatus() must not panic for command.DraftPolicyCheck
-//     (exercised indirectly here via commit status counting).
-//  2. Running draft_policy_check must never write to the database, since the
-//     DB-backed PullStatus is what ValidateApplyProject's "policies_passed"
-//     requirement reads to gate real applies. A failing draft check must not
-//     leave any trace there.
+// Ensure that ProjectResult.PlanStatus() does not panic for command.DraftPolicyCheck
+// Ensure that Running draft_policy_check never writes to the database.
 func TestDraftPolicyCheckCommandRunner_Run(t *testing.T) {
 	logger := logging.NewNoopLogger(t)
 	RegisterMockTestingT(t)
@@ -102,8 +96,6 @@ func TestDraftPolicyCheckCommandRunner_Run(t *testing.T) {
 				Eq(c.ExpTotal),
 			)
 
-			// Draft results must never be persisted: real applies gate on the
-			// DB-backed PullStatus, and draft output is explicitly not final.
 			pullStatus, err := dbUpdater.Database.GetPullStatus(modelPull)
 			Ok(t, err)
 			Assert(t, pullStatus == nil, "draft_policy_check must not write to the database, got %v", pullStatus)

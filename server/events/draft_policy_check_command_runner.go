@@ -1,4 +1,4 @@
-// Copyright 2025 The Atlantis Authors
+// Copyright 2026 The Atlantis Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package events
@@ -28,14 +28,7 @@ func NewDraftPolicyCheckCommandRunner(
 // DraftPolicyCheckCommandRunner handles the manually-triggered "atlantis
 // draft_policy_check" comment command.
 // Runs policy checks against the current .draftplan file.
-// Does not affected whether a plan can be applied or not.
-//
-// Unlike other command runners, this one deliberately does not persist its
-// results to the database: the DB-backed PullStatus is keyed only by
-// workspace/dir/project, not by which command produced the result, and
-// ValidateApplyProject's "policies_passed" apply requirement reads that same
-// PolicyStatus to gate real applies. Writing draft results there would let a
-// failing draft check silently block a real apply.
+// Does not affect whether a plan can be applied or not.
 type DraftPolicyCheckCommandRunner struct {
 	commitStatusUpdater        CommitStatusUpdater
 	pullUpdater                *PullUpdater
