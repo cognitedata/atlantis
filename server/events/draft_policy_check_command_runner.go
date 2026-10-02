@@ -14,7 +14,6 @@ func NewDraftPolicyCheckCommandRunner(
 	prjCommandBuilder ProjectPolicyCheckCommandBuilder,
 	prjCommandRunner ProjectPolicyCheckCommandRunner,
 	pullUpdater *PullUpdater,
-	dbUpdater *DBUpdater,
 	silenceVCSStatusNoProjects bool,
 ) *DraftPolicyCheckCommandRunner {
 	return &DraftPolicyCheckCommandRunner{
@@ -22,7 +21,6 @@ func NewDraftPolicyCheckCommandRunner(
 		prjCmdBuilder:              prjCommandBuilder,
 		prjCmdRunner:               prjCommandRunner,
 		pullUpdater:                pullUpdater,
-		dbUpdater:                  dbUpdater,
 		silenceVCSStatusNoProjects: silenceVCSStatusNoProjects,
 	}
 }
@@ -31,10 +29,16 @@ func NewDraftPolicyCheckCommandRunner(
 // draft_policy_check" comment command.
 // Runs policy checks against the current .draftplan file.
 // Does not affected whether a plan can be applied or not.
+//
+// Unlike other command runners, this one deliberately does not persist its
+// results to the database: the DB-backed PullStatus is keyed only by
+// workspace/dir/project, not by which command produced the result, and
+// ValidateApplyProject's "policies_passed" apply requirement reads that same
+// PolicyStatus to gate real applies. Writing draft results there would let a
+// failing draft check silently block a real apply.
 type DraftPolicyCheckCommandRunner struct {
 	commitStatusUpdater        CommitStatusUpdater
 	pullUpdater                *PullUpdater
-	dbUpdater                  *DBUpdater
 	prjCmdBuilder              ProjectPolicyCheckCommandBuilder
 	prjCmdRunner               ProjectPolicyCheckCommandRunner
 	silenceVCSStatusNoProjects bool
@@ -72,25 +76,26 @@ func (d *DraftPolicyCheckCommandRunner) Run(ctx *command.Context, cmd *CommentCo
 
 	d.pullUpdater.updatePull(ctx, cmd, result)
 
-	pullStatus, err := d.dbUpdater.updateDB(ctx, pull, result.ProjectResults)
-	if err != nil {
-		ctx.Log.Err("writing results: %s", err)
-		return
-	}
-
-	d.updateCommitStatus(ctx, pullStatus)
+	d.updateCommitStatus(ctx, result.ProjectResults)
 }
 
-func (d *DraftPolicyCheckCommandRunner) updateCommitStatus(ctx *command.Context, pullStatus models.PullStatus) {
-	numSuccess := pullStatus.StatusCount(models.PassedPolicyCheckStatus)
-	numErrored := pullStatus.StatusCount(models.ErroredPolicyCheckStatus)
+func (d *DraftPolicyCheckCommandRunner) updateCommitStatus(ctx *command.Context, results []command.ProjectResult) {
+	numSuccess := 0
+	numErrored := 0
+	for _, r := range results {
+		if r.Error != nil || r.Failure != "" {
+			numErrored++
+		} else {
+			numSuccess++
+		}
+	}
 
 	status := models.SuccessCommitStatus
 	if numErrored > 0 {
 		status = models.FailedCommitStatus
 	}
 
-	if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, ctx.Pull.BaseRepo, ctx.Pull, status, command.DraftPolicyCheck, numSuccess, len(pullStatus.Projects)); err != nil {
+	if err := d.commitStatusUpdater.UpdateCombinedCount(ctx.Log, ctx.Pull.BaseRepo, ctx.Pull, status, command.DraftPolicyCheck, numSuccess, len(results)); err != nil {
 		ctx.Log.Warn("unable to update commit status: %s", err)
 	}
 }

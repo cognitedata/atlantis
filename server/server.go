@@ -833,7 +833,6 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		projectCommandBuilder,
 		instrumentedProjectCmdRunner,
 		pullUpdater,
-		dbUpdater,
 		userConfig.SilenceVCSStatusNoProjects,
 	)
 
