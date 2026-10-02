@@ -313,10 +313,6 @@ func (p *DefaultProjectCommandBuilder) BuildVersionCommands(ctx *command.Context
 	return p.buildProjectCommand(ctx, cmd)
 }
 
-// BuildPolicyCheckCommands builds draft_policy_check commands that run
-// manually against an existing draftplan, rather than chaining automatically
-// off of a real plan. Errors if no draftplan has been run yet for the
-// targeted project.
 func (p *DefaultProjectCommandBuilder) BuildPolicyCheckCommands(ctx *command.Context, cmd *CommentCommand) ([]command.ProjectContext, error) {
 	var projCtxs []command.ProjectContext
 	var err error

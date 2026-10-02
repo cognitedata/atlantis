@@ -18,8 +18,6 @@ import (
 
 type PendingPlanFinder interface {
 	Find(pullDir string) ([]PendingPlan, error)
-	// FindDraft finds all pending draftplans in pullDir, i.e. ones with a
-	// .draftplan file but no corresponding real plan.
 	FindDraft(pullDir string) ([]PendingPlan, error)
 	DeletePlans(pullDir string) error
 }
