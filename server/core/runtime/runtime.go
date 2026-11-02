@@ -132,7 +132,11 @@ func EnsurePlanFileDir(ctx command.ProjectContext, projectPath string) error {
 
 // GetPlanFilePath returns the full path to the generated Terraform plan file.
 func GetPlanFilePath(ctx command.ProjectContext, projectPath string) string {
-	return filepath.Join(GetPlanFileDir(ctx, projectPath), GetPlanFilename(ctx.Workspace, ctx.ProjectName))
+	s := filepath.Join(GetPlanFileDir(ctx, projectPath), GetPlanFilename(ctx.Workspace, ctx.ProjectName))
+	if ctx.EphemeralPlan {
+		s = strings.Replace(s, ".tfplan", ".draftplan", -1)
+	}
+	return s
 }
 
 // GetPlanPullDir returns the root directory for all plan files for a pull request.

@@ -101,8 +101,12 @@ func (p *planStepRunner) isRemoteOpsErr(output string, err error) bool {
 // remotePlan runs a terraform plan command compatible with TFE remote
 // operations.
 func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []string, path string, tfDistribution terraform.Distribution, tfVersion *version.Version, planFile string, envs map[string]string) (string, error) {
+	baseCommand := []string{"plan", "-input=false", "-refresh", "-no-color"}
+	if ctx.EphemeralPlan {
+		baseCommand = []string{"plan", "-input=false", "-no-color", "-refresh=false", "-lock=false"}
+	}
 	argList := [][]string{
-		{"plan", "-input=false", "-refresh", "-no-color"},
+		baseCommand,
 		extraArgs,
 		ctx.CommentArgs,
 	}
@@ -174,11 +178,17 @@ func (p *planStepRunner) buildPlanCmd(ctx command.ProjectContext, extraArgs []st
 		envFileArgs = []string{"-var-file", envFile}
 	}
 
+	// The plan filename is passed as its own argument, so a path containing
+	// a space (Bitbucket Server allows spaces in repo owner names) needs no
+	// quoting. Quoting it here would make the quotes part of the filename.
+
+	baseCommand := []string{"plan", "-input=false", "-refresh", "-out", planFile}
+	if ctx.EphemeralPlan {
+		baseCommand = []string{"plan", "-input=false", "-refresh=false", "-lock=false", "-out", planFile}
+	}
+
 	argList := [][]string{
-		// The plan filename is passed as its own argument, so a path containing
-		// a space (Bitbucket Server allows spaces in repo owner names) needs no
-		// quoting. Quoting it here would make the quotes part of the filename.
-		{"plan", "-input=false", "-refresh", "-out", planFile},
+		baseCommand,
 		tfVars,
 		extraArgs,
 		ctx.CommentArgs,

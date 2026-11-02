@@ -52,6 +52,8 @@ type ProjectContext struct {
 	AutoplanEnabled bool
 	// AutoplanWhenModified is the list of file patterns that trigger autoplanning for this project.
 	AutoplanWhenModified []string
+	// EphemeralPlan means this is not going to be stored for possibly later apply
+	EphemeralPlan bool
 	// BaseRepo is the repository that the pull request will be merged into.
 	BaseRepo models.Repo
 	// ExpandableArgs are the arguments that came from operator-configured
