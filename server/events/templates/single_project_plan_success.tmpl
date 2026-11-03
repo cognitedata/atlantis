@@ -3,6 +3,7 @@
 Ran {{ .Command }} for {{ if $result.ProjectName }}project: `{{ $result.ProjectName }}` {{ end }}dir: `{{ $result.RepoRelDir }}` workspace: `{{ $result.Workspace }}`
 
 {{ $result.Rendered }}
+{{ if not .DraftPlan -}}
 {{ if ne .DisableApplyAll true }}
 ---
 * :fast_forward: To **apply** all unapplied plans from this {{ .VcsRequestType }}, comment:
@@ -13,6 +14,7 @@ Ran {{ .Command }} for {{ if $result.ProjectName }}project: `{{ $result.ProjectN
   ```shell
   {{ .ExecutableName }} unlock
   ```
+{{ end -}}
 {{ end -}}
 {{ template "log" . -}}
 {{ end -}}

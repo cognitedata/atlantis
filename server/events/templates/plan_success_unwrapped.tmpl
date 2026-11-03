@@ -2,7 +2,7 @@
 ```diff
 {{ if .EnableDiffMarkdownFormat }}{{ .DiffMarkdownFormattedTerraformOutput }}{{ else }}{{ .TerraformOutput }}{{ end }}
 ```
-
+{{ if not .DraftPlan }}
 {{ if .PlansDeleted -}}
 This plan was not saved because one or more projects failed and automerge requires all plans pass.
 {{ else -}}
@@ -19,6 +19,7 @@ This plan was not saved because one or more projects failed and automerge requir
   ```shell
   {{ .RePlanCmd }}
   ```
+{{ end -}}
 {{ end -}}
 {{ template "mergedAgain" . -}}
 {{ end -}}

@@ -9,6 +9,8 @@
 
 ---
 {{ end -}}
+{{ if not .DraftPlan -}}
 {{ template "multiProjectPlanFooter" . -}}
+{{ end -}}
 {{ template "log" . -}}
 {{ end -}}
