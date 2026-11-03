@@ -3,7 +3,7 @@
 {{ if .EnableDiffMarkdownFormat }}{{ .DiffMarkdownFormattedTerraformOutput }}{{ else }}{{ .TerraformOutput }}{{ end }}
 ```
 
-{{ if .PlanWasDeleted -}}
+{{ if .PlansDeleted -}}
 Este plan no se guardó porque uno o más proyectos fallaron y automerge requiere que todos los planes pasen.
 {{ else -}}
 {{ if not .DisableApply -}}

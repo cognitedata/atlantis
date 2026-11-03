@@ -112,12 +112,9 @@ type applyResultData struct {
 
 type planSuccessData struct {
 	models.PlanSuccess
-	PlanSummary              string
-	PlanWasDeleted           bool
-	DisableApply             bool
-	DisableRepoLocking       bool
-	EnableDiffMarkdownFormat bool
-	PlanStats                models.PlanSuccessStats
+	PlanSummary string
+	PlanStats   models.PlanSuccessStats
+	commonData
 }
 
 type policyCheckResultsData struct {
@@ -261,12 +258,9 @@ func (m *MarkdownRenderer) renderProjectResults(ctx *command.Context, results []
 		if result.PlanSuccess != nil {
 			result.PlanSuccess.TerraformOutput = strings.TrimSpace(result.PlanSuccess.TerraformOutput)
 			data := planSuccessData{
-				PlanSuccess:              *result.PlanSuccess,
-				PlanWasDeleted:           common.PlansDeleted,
-				DisableApply:             common.DisableApply,
-				DisableRepoLocking:       common.DisableRepoLocking,
-				EnableDiffMarkdownFormat: common.EnableDiffMarkdownFormat,
-				PlanStats:                result.PlanSuccess.Stats(),
+				PlanSuccess: *result.PlanSuccess,
+				PlanStats:   result.PlanSuccess.Stats(),
+				commonData:  common,
 			}
 			if m.shouldUseWrappedTmpl(vcsHost, result.PlanSuccess.TerraformOutput) {
 				data.PlanSummary = result.PlanSuccess.Summary()
