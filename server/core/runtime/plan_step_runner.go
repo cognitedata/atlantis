@@ -116,24 +116,26 @@ func (p *planStepRunner) remotePlan(ctx command.ProjectContext, extraArgs []stri
 		return output, err
 	}
 
-	// If using remote ops, we create our own "fake" planfile with the
-	// text output of the plan. We do this for two reasons:
-	// 1) Atlantis relies on there being a planfile on disk to detect which
-	// projects have outstanding plans.
-	// 2) Remote ops don't support the -out parameter so we can't save the
-	// plan. To ensure that what gets applied is the plan we printed to the PR,
-	// during the apply phase, we diff the output we stored in the fake
-	// planfile with the pending apply output.
-	planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
+	if !ctx.EphemeralPlan {
+		// If using remote ops, we create our own "fake" planfile with the
+		// text output of the plan. We do this for two reasons:
+		// 1) Atlantis relies on there being a planfile on disk to detect which
+		// projects have outstanding plans.
+		// 2) Remote ops don't support the -out parameter so we can't save the
+		// plan. To ensure that what gets applied is the plan we printed to the PR,
+		// during the apply phase, we diff the output we stored in the fake
+		// planfile with the pending apply output.
+		planOutput := StripRefreshingFromPlanOutput(output, tfVersion)
 
-	// We also prepend our own remote ops header to the file so during apply we
-	// know this is a remote apply.
-	if err := removeNonRegularPlanFile(planFile); err != nil {
-		return output, err
-	}
-	err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
-	if err != nil {
-		return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
+		// We also prepend our own remote ops header to the file so during apply we
+		// know this is a remote apply.
+		if err := removeNonRegularPlanFile(planFile); err != nil {
+			return output, err
+		}
+		err = os.WriteFile(planFile, []byte(remoteOpsHeader+planOutput), 0600)
+		if err != nil {
+			return output, fmt.Errorf("unable to create planfile for remote ops: %w", err)
+		}
 	}
 	if saveErr := p.PlanStore.Save(ctx, planFile); saveErr != nil {
 		return output, fmt.Errorf("saving plan: %w", saveErr)

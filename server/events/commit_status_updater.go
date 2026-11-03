@@ -84,6 +84,7 @@ func (d *DefaultCommitStatusUpdater) UpdateCombinedCount(logger logging.SimpleLo
 			descrip = fmt.Sprintf("%d/%d projects applied successfully.", counts.Success, counts.Total)
 		}
 	case command.Plan:
+	        // finnag TODO: draftplan here
 		switch status {
 		case models.FailedCommitStatus:
 			descrip = fmt.Sprintf("%d/%d projects failed to plan.", counts.Total-counts.Success, counts.Total)

@@ -238,7 +238,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 		return
 	}
 
-	if p.DiscardApprovalOnPlan {
+	if !ctx.GhostPlan && p.DiscardApprovalOnPlan {
 		if discardErr := p.pullUpdater.VCSClient.DiscardReviews(ctx.Log, baseRepo, pull); discardErr != nil {
 			ctx.Log.Err("failed to remove approvals: %s", discardErr)
 		}
@@ -313,7 +313,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 
 	// if the plan is generic, new plans will be generated based on changes
 	// discard previous plans that might not be relevant anymore
-	if !cmd.IsForSpecificProject() && len(projectCmds) > 0 {
+	if !ctx.GhostPlan && !cmd.IsForSpecificProject() && len(projectCmds) > 0 {
 		ctx.Log.Debug("deleting previous plans and locks")
 		if err := p.deletePlansAndPlanLocks(ctx, projectCmds); err != nil {
 			if statusErr := p.commitStatusUpdater.UpdateCombined(ctx.Log, baseRepo, pull, models.FailedCommitStatus, command.Plan); statusErr != nil {
@@ -327,7 +327,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 	result := runProjectCmdsWithCancellationTracker(ctx, projectCmds, p.cancellationTracker, p.parallelPoolSize, p.isParallelEnabled(projectCmds), p.prjCmdRunner.Plan)
 	ctx.CommandHasErrors = result.HasErrors()
 
-	if p.autoMerger.automergeEnabled(projectCmds) && result.HasErrors() {
+	if !ctx.GhostPlan && p.autoMerger.automergeEnabled(projectCmds) && result.HasErrors() {
 		ctx.Log.Info("deleting plans because there were errors and automerge requires all plans succeed")
 		if err := p.deletePlansAndPlanLocks(ctx, projectCmds); err != nil {
 			ctx.Log.Err("deleting pending plans: %s", err)
@@ -351,15 +351,18 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 	p.publishPlanStatuses(projectCmds, result, models.SuccessCommitStatus)
 	p.pullUpdater.updatePull(ctx, cmd, result)
 	p.updateCommitStatus(ctx, pullStatus, command.Plan)
-	p.updateCommitStatus(ctx, pullStatus, command.Apply)
+	if !ctx.GhostPlan {
+		p.updateCommitStatus(ctx, pullStatus, command.Apply)
+	}
 
 	// Runs policy checks step after all plans are successful.
 	// This step does not approve any policies that require approval.
-	if len(result.ProjectResults) > 0 &&
+	if !ctx.GhostPlan && len(result.ProjectResults) > 0 &&
 		(!result.HasErrors() && !result.PlansDeleted) {
+		// @@@ todo maybe we want a policy check also for draft plans.. (someone had a feature request)
 		ctx.Log.Info("Running policy check for '%s'", cmd.CommandName())
 		p.policyCheckCommandRunner.Run(ctx, policyCheckCmds)
-	} else if len(projectCmds) == 0 && !cmd.IsForSpecificProject() {
+	} else if len(projectCmds) == 0 && !ctx.GhostPlan && !cmd.IsForSpecificProject() {
 		// If there were no projects modified, we set successful commit statuses
 		// with 0/0 projects planned/policy_checked/applied successfully because some users require
 		// the Atlantis status to be passing for all pull requests.

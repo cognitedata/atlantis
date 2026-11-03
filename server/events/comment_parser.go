@@ -38,6 +38,8 @@ const (
 	autoMergeMethodFlagShort     = ""
 	verboseFlagLong              = "verbose"
 	verboseFlagShort             = ""
+	draftPlanFlagLong            = "draftplan"
+	draftPlanFlagShort           = ""
 	clearPolicyApprovalFlagLong  = "clear-policy-approval"
 	clearPolicyApprovalFlagShort = ""
 )
@@ -260,6 +262,7 @@ func (e *CommentParser) Parse(rawComment string, vcsHost models.VCSHostType) Com
 	var verbose bool
 	var autoMergeDisabled bool
 	var autoMergeMethod string
+	var draftPlan bool
 	var flagSet *pflag.FlagSet
 	var name command.Name
 
@@ -273,6 +276,7 @@ func (e *CommentParser) Parse(rawComment string, vcsHost models.VCSHostType) Com
 		flagSet.StringVarP(&dir, dirFlagLong, dirFlagShort, "", "Which directory to run plan in relative to root of repo, ex. 'child/dir'.")
 		flagSet.StringVarP(&project, projectFlagLong, projectFlagShort, "", "Which project to run plan for. Refers to the name of the project configured in a repo config file. Cannot be used at same time as workspace or dir flags.")
 		flagSet.BoolVarP(&verbose, verboseFlagLong, verboseFlagShort, false, "Append Atlantis log to comment.")
+		flagSet.BoolVarP(&draftPlan, draftPlanFlagLong, draftPlanFlagShort, false, "Create a draft plan, not a normal plan.")
 	case command.Apply.String():
 		name = command.Apply
 		flagSet = pflag.NewFlagSet(command.Apply.String(), pflag.ContinueOnError)
@@ -370,7 +374,7 @@ func (e *CommentParser) Parse(rawComment string, vcsHost models.VCSHostType) Com
 	}
 
 	return CommentParseResult{
-		Command: NewCommentCommand(dir, extraArgs, name, subName, verbose, autoMergeDisabled, autoMergeMethod, workspace, project, policySet, clearPolicyApproval),
+		Command: NewCommentCommand(dir, extraArgs, name, subName, verbose, autoMergeDisabled, autoMergeMethod, workspace, project, policySet, clearPolicyApproval, draftPlan),
 	}
 }
 

@@ -191,6 +191,7 @@ func (c *DefaultCommandRunner) RunAutoplanCommand(baseRepo models.Repo, headRepo
 		HeadRepo:   headRepo,
 		PullStatus: status,
 		Trigger:    command.AutoTrigger,
+		GhostPlan:  false, // @@@ todo finnag: maybe think about this for draft plans?
 	}
 	if !c.validateCtxAndComment(ctx, command.Autoplan, true) {
 		return
@@ -507,6 +508,7 @@ func (c *DefaultCommandRunner) RunCommentCommand(baseRepo models.Repo, maybeHead
 		PolicySet:            cmd.PolicySet,
 		ClearPolicyApproval:  cmd.ClearPolicyApproval,
 		TeamAllowlistChecker: c.TeamAllowlistChecker,
+		GhostPlan:            cmd.DraftPlan,
 	}
 
 	if !c.validateCtxAndComment(ctx, cmd.Name, true) {

@@ -108,4 +108,7 @@ type Context struct {
 	// cloned repo config before falling back to VCS content. This is used after
 	// pre-workflow hooks may have generated or updated atlantis.yaml.
 	PreferLocalRepoCfgForTargetedIgnore bool
+
+	// Set to true if the plan is a draftplan
+	GhostPlan bool
 }

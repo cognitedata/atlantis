@@ -138,6 +138,8 @@ type CommentCommand struct {
 	PolicySet string
 	// ClearPolicyApproval is true if approvals should be cleared out for specified policies.
 	ClearPolicyApproval bool
+	// DraftPlan is true if the planning should be in draft mode
+	DraftPlan bool
 }
 
 // IsForSpecificProject returns true if the command is for a specific dir, workspace
@@ -178,7 +180,7 @@ func (c CommentCommand) String() string {
 }
 
 // NewCommentCommand constructs a CommentCommand, setting all missing fields to defaults.
-func NewCommentCommand(repoRelDir string, flags []string, name command.Name, subName string, verbose, autoMergeDisabled bool, autoMergeMethod string, workspace string, project string, policySet string, clearPolicyApproval bool) *CommentCommand {
+func NewCommentCommand(repoRelDir string, flags []string, name command.Name, subName string, verbose, autoMergeDisabled bool, autoMergeMethod string, workspace string, project string, policySet string, clearPolicyApproval bool, draftPlan bool) *CommentCommand {
 	// If repoRelDir was empty we want to keep it that way to indicate that it
 	// wasn't specified in the comment.
 	if repoRelDir != "" {
@@ -199,6 +201,7 @@ func NewCommentCommand(repoRelDir string, flags []string, name command.Name, sub
 		ProjectName:         project,
 		PolicySet:           policySet,
 		ClearPolicyApproval: clearPolicyApproval,
+		DraftPlan:           draftPlan,
 	}
 }
 
