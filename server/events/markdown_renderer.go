@@ -69,6 +69,7 @@ type commonData struct {
 	HideUnchangedPlanComments bool
 	QuietPolicyChecks         bool
 	VcsRequestType            string
+	DraftPlan                 bool
 }
 
 // errData is data about an error response.
@@ -219,6 +220,7 @@ func (m *MarkdownRenderer) Render(ctx *command.Context, res command.Result, cmd 
 		HideUnchangedPlanComments: m.hideUnchangedPlanComments,
 		QuietPolicyChecks:         m.quietPolicyChecks,
 		VcsRequestType:            vcsRequestType,
+		DraftPlan:                 ctx.GhostPlan,
 	}
 
 	templates := m.markdownTemplates
