@@ -283,6 +283,7 @@ func (p *PlanCommandRunner) run(ctx *command.Context, cmd *CommentCommand) {
 					return
 				}
 				ctx.Log.Debug("resetting VCS status")
+				// @@@ todo finnag something something draftplan?
 				p.updateCommitStatus(ctx, *pullStatus, command.Plan)
 			} else {
 				// With a generic plan, we set successful commit statuses
